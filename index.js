@@ -76,8 +76,7 @@ async function sendWhatsApp(phone, message) {
   // TODO: Integrate with Twilio or WhatsApp Business API
 }
 
-// Main Cloud Function
-exports.hikeCastBot = async (req, res) => {
+async function main() {
   try {
     const users = loadUsers();
     for (const user of users) {
@@ -102,9 +101,13 @@ exports.hikeCastBot = async (req, res) => {
         }
       }
     }
-    res.status(200).send('Notifications sent.');
+    console.log('Notifications sent.');
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Error sending notifications.');
+    console.error('Error sending notifications:', err);
+    process.exitCode = 1;
   }
-}; 
+}
+
+if (require.main === module) {
+  main();
+} 

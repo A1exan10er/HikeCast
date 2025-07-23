@@ -1,0 +1,10 @@
+[
+  {
+    "name": "SampleUser",
+    "locations": ["Sample City,Country"],
+    "channels": ["telegram", "email"],
+    "telegram_chat_id": "123456789",
+    "email": "sampleuser@example.com",
+    "whatsapp": "+10000000000"
+  }
+] 
