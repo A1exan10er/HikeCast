@@ -2,9 +2,13 @@
 const fs = require('fs');
 const axios = require('axios');
 require('dotenv').config();
+const nodemailer = require('nodemailer');
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
+
+const gmailUser = process.env.GMAIL_USER;
+const gmailPass = process.env.GMAIL_PASS;
 
 // Load user preferences from JSON
 function loadUsers() {
@@ -45,9 +49,26 @@ async function sendTelegram(chatId, message) {
   });
 }
 
-// TODO: Implement email notification
 async function sendEmail(email, subject, message) {
-  // TODO: Integrate with SendGrid, Mailgun, or Gmail API
+  if (!gmailUser || !gmailPass) {
+    console.warn('GMAIL_USER or GMAIL_PASS not set, skipping email.');
+    return;
+  }
+  let transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: gmailUser,
+      pass: gmailPass,
+    },
+  });
+
+  await transporter.sendMail({
+    from: `"HikeCastBot" <${gmailUser}>`,
+    to: email,
+    subject: subject,
+    text: message,
+    html: `<pre>${message}</pre>`,
+  });
 }
 
 // TODO: Implement WhatsApp notification
