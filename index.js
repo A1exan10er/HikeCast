@@ -1,6 +1,8 @@
 // index.js
 const fs = require('fs');
 const axios = require('axios');
+const express = require('express');
+const cron = require('node-cron');
 require('dotenv').config();
 const nodemailer = require('nodemailer');
 
@@ -76,38 +78,52 @@ async function sendWhatsApp(phone, message) {
   // TODO: Integrate with Twilio or WhatsApp Business API
 }
 
-async function main() {
-  try {
-    const users = loadUsers();
-    for (const user of users) {
-      for (const location of user.locations) {
-        const { geo, weather } = await getWeather(location);
-        // Get tomorrow's forecast (index 1)
-        const dayIdx = 1; // 0 = today, 1 = tomorrow
-        const date = weather.daily.time[dayIdx];
-        const tempMax = weather.daily.temperature_2m_max[dayIdx];
-        const tempMin = weather.daily.temperature_2m_min[dayIdx];
-        const precip = weather.daily.precipitation_sum[dayIdx];
-        const weatherCode = weather.daily.weathercode[dayIdx];
-        const message = `Weather for *${geo.name}, ${geo.country}* on ${date}:\n- Max: ${tempMax}°C, Min: ${tempMin}°C\n- Precipitation: ${precip}mm\n- Weather code: ${weatherCode}`;
-        if (user.channels.includes('telegram') && user.telegram_chat_id) {
-          await sendTelegram(user.telegram_chat_id, message);
-        }
-        if (user.channels.includes('email') && user.email) {
-          await sendEmail(user.email, `Hiking Weather for ${geo.name}`, message);
-        }
-        if (user.channels.includes('whatsapp') && user.whatsapp) {
-          await sendWhatsApp(user.whatsapp, message);
-        }
-      }
+async function notifyUser(user) {
+  for (const location of user.locations) {
+    const { geo, weather } = await getWeather(location);
+    // Get tomorrow's forecast (index 1)
+    const dayIdx = 1; // 0 = today, 1 = tomorrow
+    const date = weather.daily.time[dayIdx];
+    const tempMax = weather.daily.temperature_2m_max[dayIdx];
+    const tempMin = weather.daily.temperature_2m_min[dayIdx];
+    const precip = weather.daily.precipitation_sum[dayIdx];
+    const weatherCode = weather.daily.weathercode[dayIdx];
+    const message = `Weather for *${geo.name}, ${geo.country}* on ${date}:\n- Max: ${tempMax}°C, Min: ${tempMin}°C\n- Precipitation: ${precip}mm\n- Weather code: ${weatherCode}`;
+    if (user.channels.includes('telegram') && user.telegram_chat_id) {
+      await sendTelegram(user.telegram_chat_id, message);
     }
-    console.log('Notifications sent.');
-  } catch (err) {
-    console.error('Error sending notifications:', err);
-    process.exitCode = 1;
+    if (user.channels.includes('email') && user.email) {
+      await sendEmail(user.email, `Hiking Weather for ${geo.name}`, message);
+    }
+    if (user.channels.includes('whatsapp') && user.whatsapp) {
+      await sendWhatsApp(user.whatsapp, message);
+    }
   }
 }
 
-if (require.main === module) {
-  main();
-} 
+function scheduleNotifications() {
+  const users = loadUsers();
+  users.forEach(user => {
+    if (user.schedule) {
+      cron.schedule(user.schedule, () => {
+        notifyUser(user).catch(err => console.error(`Error notifying ${user.name}:`, err));
+      }, {
+        timezone: 'Etc/UTC' // You can adjust this or make it user-configurable
+      });
+      console.log(`Scheduled notifications for ${user.name} with cron: ${user.schedule}`);
+    }
+  });
+}
+
+// Start Express server
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+  res.send('HikeCastBot is running and scheduling notifications!');
+});
+
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+  scheduleNotifications();
+}); 
