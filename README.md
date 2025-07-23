@@ -1,12 +1,15 @@
-# HikeCastBot (Google Cloud Functions, Node.js)
+# HikeCastBot (Node.js, Render, Express, node-cron)
 
-A cloud-based notification robot that sends hiking weather updates via Telegram (and stubs for Email/WhatsApp).
+A cloud-based notification robot that sends hiking weather updates via Telegram, Email, and (optionally) WhatsApp. Now runs as a persistent web service with per-user scheduled notifications.
 
 ## Features
 - Multi-location, multi-channel notifications
-- User preferences in `users.json`
+- Per-user scheduling (cron format)
+- User preferences in `users.json` (not tracked in git)
+- Example user data in `users.example.json`
 - Weather data from Open-Meteo (no API key required)
-- Telegram notifications (Email/WhatsApp: TODO)
+- Telegram and Email notifications (WhatsApp: optional)
+- Deployable as a Web Service on [Render](https://render.com/)
 
 ## Setup
 
@@ -16,52 +19,56 @@ A cloud-based notification robot that sends hiking weather updates via Telegram 
    ```
 
 2. **Configure environment variables:**
-   - Rename `.env.example` to `.env` and fill in your Telegram Bot token.
-   - Get a Telegram Bot token from [BotFather](https://core.telegram.org/bots#botfather).
+   - Copy `.env.example` to `.env` and fill in your secrets:
+     - `TELEGRAM_BOT_TOKEN` (Telegram Bot)
+     - `GMAIL_USER` and `GMAIL_PASS` (Gmail SMTP, App Password)
+     - (Optional) WhatsApp Cloud API variables
 
-3. **Edit `users.json`:**
-   - Add users, locations, and their notification channels.
-   - Example:
-     ```json
-     [
-       {
-         "name": "Alice",
-         "locations": ["San Francisco,US", "Yosemite National Park,US"],
-         "channels": ["telegram", "email"],
-         "telegram_chat_id": "123456789",
-         "email": "alice@example.com",
-         "whatsapp": "+1234567890"
-       }
-     ]
-     ```
-   - To get your Telegram chat ID, message your bot and use [@userinfobot](https://t.me/userinfobot) or similar.
+3. **Prepare user data:**
+   - Copy `users.example.json` to `users.json` and edit with your real user/location/channel/schedule info.
+   - **Do NOT commit `users.json` to git!** It is in `.gitignore` for privacy.
 
-## Deploy to Google Cloud Functions
-
-1. **Set up Google Cloud project and enable Cloud Functions, Cloud Scheduler, and Secret Manager.**
-2. **Deploy the function:**
+4. **Run locally:**
    ```bash
-   gcloud functions deploy hikeCastBot \
-     --runtime nodejs18 \
-     --trigger-http \
-     --allow-unauthenticated \
-     --set-env-vars TELEGRAM_BOT_TOKEN=your-token
+   npm start
+   # Visit http://localhost:3000 to check status
+   # Notifications will be sent at the times specified in each user's schedule
    ```
-   Or use Secret Manager for sensitive keys.
 
-3. **Schedule with Cloud Scheduler:**
-   - Create a scheduler job to trigger the function URL at your desired time/frequency.
-   - Example (every Saturday at 7am):
-     ```bash
-     gcloud scheduler jobs create http hikecast-job \
-       --schedule="0 7 * * 6" \
-       --uri="YOUR_FUNCTION_URL" \
-       --http-method=GET
-     ```
+## Deployment (Render Web Service)
+
+1. **Push your code to GitHub.**
+2. **Create a new Web Service on [Render](https://render.com/):**
+   - Connect your GitHub repo.
+   - Set the start command to `npm start`.
+   - Add your environment variables in the Render dashboard.
+   - After deploy, upload your real `users.json` via the Render dashboard (or use a Render Secret/File).
+3. **Your bot will now send notifications at the times specified in each user's `schedule`!**
+
+## User Data Example
+See `users.example.json` for the required structure:
+```json
+[
+  {
+    "name": "SampleUser",
+    "locations": ["Sample City,Country"],
+    "channels": ["telegram", "email"],
+    "telegram_chat_id": "123456789",
+    "email": "sampleuser@example.com",
+    "whatsapp": "+10000000000",
+    "schedule": "0 7 * * 6" // Every Saturday at 7am (cron format)
+  }
+]
+```
+
+## Security & Privacy
+- **users.json** is in `.gitignore` and should never be committed to a public repo.
+- Store secrets (API keys, passwords) in environment variables, not in code.
 
 ## Extending
-- Add Email/WhatsApp support by integrating with SendGrid/Mailgun/Twilio.
-- Move user data to Firestore or Google Sheets for dynamic management.
+- Add WhatsApp support by integrating with the WhatsApp Cloud API.
+- Move user data to a database for dynamic management.
+- Add a web UI for user management.
 
 ## License
 MIT
