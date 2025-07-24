@@ -126,6 +126,10 @@ app.get('/', (req, res) => {
   res.send('HikeCastBot is running and scheduling notifications!');
 });
 
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
 app.get('/test-notify', async (req, res) => {
   const users = loadUsers();
   for (const user of users) {
