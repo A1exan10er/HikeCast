@@ -138,7 +138,17 @@ app.get('/test-notify', async (req, res) => {
   res.send('Test notifications sent (check your email and Telegram)!');
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server listening on port ${PORT}`);
   scheduleNotifications();
+  // Send notification to all users immediately at deployment
+  try {
+    const users = loadUsers();
+    for (const user of users) {
+      await notifyUser(user);
+    }
+    console.log('Deployment notification sent to all users.');
+  } catch (err) {
+    console.error('Error sending deployment notification:', err);
+  }
 }); 
