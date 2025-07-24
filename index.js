@@ -106,9 +106,12 @@ function scheduleNotifications() {
   users.forEach(user => {
     if (user.schedule) {
       cron.schedule(user.schedule, () => {
-        notifyUser(user).catch(err => console.error(`Error notifying ${user.name}:`, err));
+        console.log(`[${new Date().toISOString()}] Running scheduled notification for ${user.name}`);
+        notifyUser(user)
+          .then(() => console.log(`[${new Date().toISOString()}] Notification sent to ${user.name}`))
+          .catch(err => console.error(`[${new Date().toISOString()}] Error notifying ${user.name}:`, err));
       }, {
-        timezone: 'Etc/UTC' // You can adjust this or make it user-configurable
+        timezone: 'Etc/UTC'
       });
       console.log(`Scheduled notifications for ${user.name} with cron: ${user.schedule}`);
     }
