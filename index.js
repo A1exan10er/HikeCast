@@ -123,6 +123,14 @@ app.get('/', (req, res) => {
   res.send('HikeCastBot is running and scheduling notifications!');
 });
 
+app.get('/test-notify', async (req, res) => {
+  const users = loadUsers();
+  for (const user of users) {
+    await notifyUser(user);
+  }
+  res.send('Test notifications sent (check your email and Telegram)!');
+});
+
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
   scheduleNotifications();
