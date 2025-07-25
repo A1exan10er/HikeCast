@@ -131,9 +131,10 @@ async function notifyUser(user) {
     if (user.channels.includes('email') && user.email) {
       await sendEmail(user.email, `Hiking Weather for ${geo.name}`, message);
     }
-    if (user.channels.includes('whatsapp') && user.whatsapp) {
-      await sendWhatsApp(user.whatsapp, message);
-    }
+    // TODO: WhatsApp functionality - temporarily commented out due to Meta API limitations
+    // if (user.channels.includes('whatsapp') && user.whatsapp) {
+    //   await sendWhatsApp(user.whatsapp, message);
+    // }
   }
 }
 
