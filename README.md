@@ -12,6 +12,35 @@ A cloud-based notification robot that sends hiking weather updates via Telegram,
 - Deployable as a Web Service on [Render](https://render.com/)
 - **Health endpoint** for uptime monitoring and keeping the service warm
 
+## Notification Channels Status
+
+### ✅ Telegram
+- Fully configured and working
+- Real-time weather data delivery
+- Markdown formatting support
+
+### ✅ Email  
+- Fully configured and working
+- Gmail SMTP with app password
+- HTML formatted messages
+
+### ⚠️ WhatsApp (Partial Configuration)
+- **Status**: Permanent API access token configured
+- **Current**: Can send `hello_world` template messages only
+- **Limitations**: 
+  - Meta rate limits for adding test phone numbers
+  - Custom weather template approval needed for actual weather data
+  - Currently limited to verified test numbers only
+
+**WhatsApp Setup Progress:**
+- [x] Meta Developer Account created
+- [x] WhatsApp Business App configured  
+- [x] System User with permanent token generated
+- [x] Webhook endpoints implemented (`/webhook`)
+- [ ] Test phone number verification (Meta rate limited)
+- [ ] Custom weather message template creation & approval
+- [ ] Production app review (for unrestricted messaging)
+
 ## Setup
 
 1. **Clone the repo and install dependencies:**
@@ -23,7 +52,10 @@ A cloud-based notification robot that sends hiking weather updates via Telegram,
    - Copy `.env.example` to `.env` and fill in your secrets:
      - `TELEGRAM_BOT_TOKEN` (Telegram Bot)
      - `GMAIL_USER` and `GMAIL_PASS` (Gmail SMTP, App Password)
-     - (Optional) WhatsApp Cloud API variables
+     - (Optional) WhatsApp Cloud API variables:
+       - `WHATSAPP_ACCESS_TOKEN` (System User Token - Permanent)
+       - `WHATSAPP_PHONE_NUMBER_ID` (Phone Number ID from Meta)
+       - `WHATSAPP_VERIFY_TOKEN` (Webhook verification token)
 
 3. **Prepare user data:**
    - Copy `users.example.json` to `users.json` and edit with your real user/location/channel/schedule info.
@@ -70,6 +102,14 @@ A cloud-based notification robot that sends hiking weather updates via Telegram,
 3. Set the interval to 5 minutes (free tier minimum).
 4. This will keep your service awake and your scheduled notifications reliable.
 
+## API Endpoints
+
+- `GET /` - Service status and information
+- `GET /health` - Health check for uptime monitoring  
+- `GET /test-notify` - Send test notifications to all users
+- `GET /webhook` - WhatsApp webhook verification endpoint
+- `POST /webhook` - WhatsApp message receiver endpoint
+
 ## User Data Example
 See `users.example.json` for the required structure:
 ```json
@@ -77,11 +117,12 @@ See `users.example.json` for the required structure:
   {
     "name": "SampleUser",
     "locations": ["Sample City,Country"],
-    "channels": ["telegram", "email"],
+    "channels": ["telegram", "email", "whatsapp"],
     "telegram_chat_id": "123456789",
     "email": "sampleuser@example.com",
     "whatsapp": "+10000000000",
-    "schedule": "0 7 * * 6" // Every Saturday at 7am (cron format)
+    "schedule": "0 7 * * 6",
+    "timezone": "America/New_York"
   }
 ]
 ```
@@ -89,6 +130,21 @@ See `users.example.json` for the required structure:
 ## Security & Privacy
 - **users.json** is in `.gitignore` and should never be committed to a public repo.
 - Store secrets (API keys, passwords) in environment variables, not in code.
+- WhatsApp webhook endpoints include verification for security.
+
+## WhatsApp Configuration Notes
+
+### Current Limitations:
+- Only `hello_world` template messages work currently
+- Cannot send custom weather data until template approval
+- Limited to Meta-verified test phone numbers
+- Meta has rate limits for adding new test numbers
+
+### For Full WhatsApp Functionality:
+1. **Create Custom Weather Template** in Meta Business Manager
+2. **Submit for Template Approval** (24-48 hours)
+3. **Add Test Phone Numbers** (when Meta limits allow)
+4. **Production App Review** (for messaging any number)
 
 ## Extending
 - Add WhatsApp support by integrating with the WhatsApp Cloud API.
