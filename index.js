@@ -111,7 +111,7 @@ function scheduleNotifications() {
           .then(() => console.log(`[${new Date().toISOString()}] Notification sent to ${user.name}`))
           .catch(err => console.error(`[${new Date().toISOString()}] Error notifying ${user.name}:`, err));
       }, {
-        timezone: 'Etc/UTC'
+        timezone: user.timezone || 'Etc/UTC' // Default to UTC if not specified
       });
       console.log(`Scheduled notifications for ${user.name} with cron: ${user.schedule}`);
     }
