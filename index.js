@@ -12,6 +12,10 @@ const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
 const gmailUser = process.env.GMAIL_USER;
 const gmailPass = process.env.GMAIL_PASS;
 
+// WhatsApp Business API configuration
+const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
+const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
 // Load user preferences from JSON
 function loadUsers() {
   return JSON.parse(fs.readFileSync('users.json', 'utf8'));
@@ -73,9 +77,40 @@ async function sendEmail(email, subject, message) {
   });
 }
 
-// TODO: Implement WhatsApp notification
+// WhatsApp notification using Meta Business Platform
 async function sendWhatsApp(phone, message) {
-  // TODO: Integrate with Twilio or WhatsApp Business API
+  if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
+    console.warn('WhatsApp credentials not set, skipping WhatsApp message.');
+    return;
+  }
+
+  try {
+    // Ensure phone number is in international format without + sign
+    const formattedPhone = phone.replace(/^\+/, '').replace(/\D/g, '');
+    
+    const url = `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
+    
+    const data = {
+      messaging_product: "whatsapp",
+      to: formattedPhone,
+      type: "text",
+      text: {
+        body: message
+      }
+    };
+
+    const response = await axios.post(url, data, {
+      headers: {
+        'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log(`WhatsApp message sent successfully. Message ID: ${response.data.messages[0].id}`);
+  } catch (error) {
+    console.error('Error sending WhatsApp message:', error.response?.data || error.message);
+    throw error;
+  }
 }
 
 async function notifyUser(user) {
@@ -151,4 +186,4 @@ app.listen(PORT, async () => {
   } catch (err) {
     console.error('Error sending deployment notification:', err);
   }
-}); 
+});
