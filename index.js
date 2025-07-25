@@ -188,10 +188,17 @@ app.get('/webhook', (req, res) => {
     } else {
       res.sendStatus(403);
     }
+  } else {
+    // Handle browser requests (when no webhook verification params)
+    res.json({
+      status: 'WhatsApp Webhook Endpoint',
+      message: 'This endpoint is ready to receive WhatsApp webhooks',
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
-// Add webhook endpoint to receive WhatsApp messages
+// Add webhook endpoint to receive WhatsApp messages (POST)
 app.post('/webhook', express.json(), (req, res) => {
   const body = req.body;
   
