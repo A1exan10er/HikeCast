@@ -85,17 +85,18 @@ async function sendWhatsApp(phone, message) {
   }
 
   try {
-    // Ensure phone number is in international format without + sign
     const formattedPhone = phone.replace(/^\+/, '').replace(/\D/g, '');
-    
-    const url = `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
+    const url = `https://graph.facebook.com/v22.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
     
     const data = {
       messaging_product: "whatsapp",
       to: formattedPhone,
-      type: "text",
-      text: {
-        body: message
+      type: "template",
+      template: {
+        name: "hello_world",
+        language: {
+          code: "en_US"
+        }
       }
     };
 
