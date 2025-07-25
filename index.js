@@ -173,6 +173,49 @@ app.get('/test-notify', async (req, res) => {
   res.send('Test notifications sent (check your email and Telegram)!');
 });
 
+// Add webhook verification endpoint for WhatsApp
+app.get('/webhook', (req, res) => {
+  const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || 'your_verify_token';
+  
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  
+  if (mode && token) {
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('Webhook verified successfully!');
+      res.status(200).send(challenge);
+    } else {
+      res.sendStatus(403);
+    }
+  }
+});
+
+// Add webhook endpoint to receive WhatsApp messages
+app.post('/webhook', express.json(), (req, res) => {
+  const body = req.body;
+  
+  if (body.object === 'whatsapp_business_account') {
+    body.entry.forEach(entry => {
+      const changes = entry.changes;
+      changes.forEach(change => {
+        if (change.field === 'messages') {
+          const messages = change.value.messages;
+          if (messages) {
+            messages.forEach(message => {
+              console.log('Received WhatsApp message:', message);
+              // Handle incoming messages here if needed
+            });
+          }
+        }
+      });
+    });
+    res.status(200).send('EVENT_RECEIVED');
+  } else {
+    res.sendStatus(404);
+  }
+});
+
 app.listen(PORT, async () => {
   console.log(`Server listening on port ${PORT}`);
   scheduleNotifications();
