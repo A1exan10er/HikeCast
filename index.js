@@ -19,7 +19,7 @@ const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
 // Initialize Gemini AI with the new API
-const genAI = GEMINI_API_KEY ? new GoogleGenAI({ apiKey: GEMINI_API_KEY }) : null;
+const genAI = GEMINI_API_KEY ? new GoogleGenAI({}) : null;
 
 // Load user preferences from JSON
 function loadUsers() {
@@ -55,12 +55,22 @@ async function geocodeLocation(location) {
 // Fetch weather data for a location using Open-Meteo
 async function getWeather(location) {
   try {
+    console.log(`🔍 Fetching weather for: ${location}`);
     const geo = await geocodeLocation(location);
+    console.log(`🔍 Geocoded ${location} to:`, JSON.stringify(geo, null, 2));
+    
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${geo.lat}&longitude=${geo.lon}&current=temperature_2m,weathercode,windspeed_10m&hourly=temperature_2m,precipitation,weathercode,windspeed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&forecast_days=7&timezone=auto`;
+    console.log(`🔍 Weather API URL: ${url}`);
+    
     const response = await axios.get(url);
+    console.log(`✅ Weather data received for ${location}`);
     return { geo, weather: response.data };
   } catch (error) {
-    console.error(`Error fetching weather for ${location}:`, error.message);
+    console.error(`❌ Weather API Error for ${location}:`);
+    console.error('Status:', error.response?.status);
+    console.error('Status Text:', error.response?.statusText);
+    console.error('Error Data:', JSON.stringify(error.response?.data, null, 2));
+    console.error('Full Error:', error.message);
     throw error;
   }
 }
@@ -72,18 +82,124 @@ async function sendTelegram(chatId, message) {
     return;
   }
   
+  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+  
   try {
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-    await axios.post(url, {
-      chat_id: chatId,
-      text: message,
-      parse_mode: 'Markdown'
-    });
-    console.log(`Telegram message sent successfully to ${chatId}`);
+    console.log(`🔍 Attempting Telegram send to chat ID: ${chatId} (type: ${typeof chatId})`);
+    
+    // Convert to completely plain text - remove ALL formatting
+    let plainMessage = message
+      .replace(/\*\*(.*?)\*\*/g, '$1')     // Remove **bold**
+      .replace(/\*(.*?)\*/g, '$1')         // Remove *italic*
+      .replace(/`(.*?)`/g, '$1')           // Remove `code`
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove [link](url)
+      .replace(/#{1,6}\s+/g, '')           // Remove # headers
+      .replace(/[_~|]/g, '')               // Remove other markdown chars
+      .replace(/─+/g, '---')               // Replace special dashes
+      .replace(/\n\n\n+/g, '\n\n');       // Clean up excessive newlines
+    
+    // Telegram has a 4096 character limit
+    const maxLength = 4000; // Conservative buffer
+    
+    if (plainMessage.length <= maxLength) {
+      const payload = {
+        chat_id: parseInt(chatId), // Convert to number if it's a string
+        text: plainMessage
+        // NO parse_mode - send as pure plain text
+      };
+      
+      console.log(`🔍 Sending plain text message (${plainMessage.length} chars)`);
+      
+      const response = await axios.post(url, payload);
+      console.log(`✅ Telegram message sent successfully to ${chatId}`);
+    } else {
+      // Split long messages
+      console.log(`🔍 Message too long (${plainMessage.length} chars), splitting...`);
+      
+      const parts = splitLongMessage(plainMessage, maxLength);
+      
+      for (let i = 0; i < parts.length; i++) {
+        const partMessage = i === 0 ? parts[i] : `Part ${i + 1}:\n\n${parts[i]}`;
+        
+        const payload = {
+          chat_id: parseInt(chatId),
+          text: partMessage
+          // NO parse_mode
+        };
+        
+        await axios.post(url, payload);
+        console.log(`✅ Telegram message part ${i + 1}/${parts.length} sent`);
+        
+        // Delay between parts
+        if (i < parts.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    }
+    
   } catch (error) {
-    console.error('Error sending Telegram message:', error.response?.data || error.message);
+    console.error(`❌ Telegram API Error for chat ID ${chatId}:`);
+    console.error('Status:', error.response?.status);
+    console.error('Status Text:', error.response?.statusText);
+    console.error('Error Data:', JSON.stringify(error.response?.data, null, 2));
+    console.error('Full Error:', error.message);
     throw error;
   }
+}
+
+// Simple message splitting function
+function splitLongMessage(message, maxLength) {
+  const parts = [];
+  let current = '';
+  const lines = message.split('\n');
+  
+  for (const line of lines) {
+    if (current.length + line.length + 1 > maxLength) {
+      if (current.trim()) {
+        parts.push(current.trim());
+        current = '';
+      }
+      
+      // If single line is too long, split by words
+      if (line.length > maxLength) {
+        const words = line.split(' ');
+        let tempLine = '';
+        
+        for (const word of words) {
+          if (tempLine.length + word.length + 1 > maxLength) {
+            if (tempLine.trim()) {
+              if (current) {
+                current += '\n' + tempLine.trim();
+              } else {
+                current = tempLine.trim();
+              }
+            }
+            tempLine = word;
+          } else {
+            tempLine += (tempLine ? ' ' : '') + word;
+          }
+        }
+        
+        if (tempLine.trim()) {
+          if (current) {
+            current += '\n' + tempLine.trim();
+          } else {
+            current = tempLine.trim();
+          }
+        }
+      } else {
+        current = line;
+      }
+    } else {
+      current += (current ? '\n' : '') + line;
+    }
+  }
+  
+  if (current.trim()) {
+    parts.push(current.trim());
+  }
+  
+  return parts;
 }
 
 async function sendEmail(email, subject, message) {
@@ -188,7 +304,7 @@ async function analyzeWeatherWithGemini(weatherData, location) {
   }
 
   try {
-    console.log('Starting Gemini analysis for', location);
+    console.log(`🔍 Starting Gemini analysis for ${location}`);
     const weatherDescription = getWeatherDescription(weatherData.weatherCode);
     
     const prompt = `
@@ -212,23 +328,26 @@ Keep the response concise but informative, suitable for a weather notification m
 Note: This forecast is for ${weatherData.dayLabel.toLowerCase()}.
 `;
 
-    console.log('Sending request to Gemini...');
+    console.log(`🔍 Sending request to Gemini with model: gemini-2.5-flash`);
+    
+    // Use the correct API structure for @google/genai
     const response = await genAI.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
-      config: {
-        thinkingConfig: {
-          thinkingBudget: 0, // Disables thinking for faster response
-        },
-      }
     });
 
-    console.log('Gemini response received successfully');
+    console.log(`✅ Gemini response received successfully`);
     return response.text;
   } catch (error) {
-    console.error('Error analyzing weather with Gemini:', error);
-    console.error('Error details:', error.message);
-    return null;
+    console.error(`❌ Gemini API Error for ${location}:`);
+    console.error('Error Type:', error.constructor.name);
+    console.error('Error Message:', error.message);
+    console.error('Error Stack:', error.stack);
+    if (error.response) {
+      console.error('Response Status:', error.response.status);
+      console.error('Response Data:', JSON.stringify(error.response.data, null, 2));
+    }
+    return null; // Don't throw, just return null to continue
   }
 }
 
@@ -628,10 +747,13 @@ async function sendExtremeWeatherAlert(user, location, geo, alerts) {
 
 // AI analysis for extreme weather conditions
 async function analyzeExtremeWeatherWithGemini(alerts, location) {
-  if (!genAI) return null;
+  if (!genAI) {
+    console.warn('Gemini API key not set, skipping extreme weather AI analysis.');
+    return null;
+  }
   
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    console.log(`🔍 Starting Gemini extreme weather analysis for ${location}`);
     
     const alertDescriptions = alerts.map(alert => `${alert.type}: ${alert.message}`).join('\n');
     
@@ -651,11 +773,24 @@ Please provide:
 Keep the response urgent, clear, and focused on life safety. This is an emergency weather situation.
 `;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    return response.text();
+    console.log(`🔍 Sending extreme weather request to Gemini with model: gemini-2.5-flash`);
+    
+    // Use the correct API structure
+    const response = await genAI.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+    
+    console.log(`✅ Gemini extreme weather analysis completed`);
+    return response.text;
   } catch (error) {
-    console.error('Error analyzing extreme weather with Gemini:', error);
+    console.error(`❌ Gemini extreme weather analysis error for ${location}:`);
+    console.error('Error Type:', error.constructor.name);
+    console.error('Error Message:', error.message);
+    if (error.response) {
+      console.error('Response Status:', error.response.status);
+      console.error('Response Data:', JSON.stringify(error.response.data, null, 2));
+    }
     return null;
   }
 }
@@ -877,5 +1012,220 @@ app.listen(PORT, async () => {
   } catch (err) {
     console.error('Error in startup process:', err.message);
     console.error('Stack trace:', err.stack);
+  }
+});
+
+// Also add a simplified test endpoint that sends a short message:
+app.get('/test-simple', async (req, res) => {
+  try {
+    console.log('🔍 Starting simple test...');
+    
+    // Test 1: Load users
+    console.log('🔍 Test 1: Loading users...');
+    const users = loadUsers();
+    console.log(`✅ Loaded ${users.length} users`);
+    
+    if (users.length === 0) {
+      return res.json({ status: 'error', message: 'No users found' });
+    }
+    
+    const user = users[0];
+    console.log(`🔍 Testing with user: ${user.name}`);
+    
+    // Test 2: Get weather for first location only
+    console.log('🔍 Test 2: Getting weather...');
+    const location = user.locations[0];
+    const { geo, weather } = await getWeather(location);
+    console.log(`✅ Weather data received for ${location}`);
+    
+    // Test 3: Create a very simple message (no AI, minimal formatting)
+    console.log('🔍 Test 3: Creating simple message...');
+    const forecastDays = getRequestedForecastDays(weather, user);
+    const dayData = forecastDays[0];
+    
+    const simpleMessage = `🏔️ Hiking Weather Test for ${geo.name}
+
+📅 ${dayData.dayName}: ${dayData.tempMax}°C / ${dayData.tempMin}°C
+🌧️ Precipitation: ${dayData.precip}mm
+☁️ ${getWeatherDescription(dayData.weatherCode)}
+
+✅ Test message sent successfully!`;
+    
+    console.log('✅ Simple message created');
+    console.log('Message preview:', simpleMessage.substring(0, 200) + '...');
+    
+    // Test 4: Send only to Telegram (skip email for now)
+    if (user.channels.includes('telegram') && user.telegram_chat_id) {
+      console.log('🔍 Test 4: Sending to Telegram...');
+      await sendTelegram(user.telegram_chat_id, simpleMessage);
+      console.log('✅ Telegram message sent');
+    }
+    
+    res.json({ 
+      status: 'success', 
+      message: 'Simple test completed successfully',
+      location: geo.name,
+      temperature: `${dayData.tempMax}°C / ${dayData.tempMin}°C`,
+      messageLength: simpleMessage.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Simple test failed:', error.message);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      status: 'error', 
+      message: error.message,
+      stack: error.stack
+    });
+  }
+});
+
+// Also create an even simpler test that avoids AI completely
+app.get('/test-telegram-only', async (req, res) => {
+  try {
+    console.log('🔍 Starting Telegram-only test...');
+    
+    const users = loadUsers();
+    if (users.length === 0) {
+      return res.json({ status: 'error', message: 'No users found' });
+    }
+    
+    const user = users[0];
+    const location = user.locations[0];
+    
+    // Get basic weather data
+    const { geo, weather } = await getWeather(location);
+    const forecastDays = getRequestedForecastDays(weather, user);
+    const dayData = forecastDays[0];
+    
+    // Create very basic message without any complex formatting
+    const basicMessage = `🏔️ Weather Test for ${geo.name}
+
+📅 ${dayData.dayName}
+🌡️ ${dayData.tempMax}°C / ${dayData.tempMin}°C
+🌧️ ${dayData.precip}mm
+☁️ ${getWeatherDescription(dayData.weatherCode)}
+
+Test completed at ${new Date().toLocaleTimeString()}`;
+    
+    console.log(`Message length: ${basicMessage.length}`);
+    console.log('Message content:', basicMessage);
+    
+    if (user.channels.includes('telegram') && user.telegram_chat_id) {
+      await sendTelegram(user.telegram_chat_id, basicMessage);
+    }
+    
+    res.json({ 
+      status: 'success', 
+      message: 'Telegram test completed',
+      messageLength: basicMessage.length,
+      location: geo.name
+    });
+    
+  } catch (error) {
+    console.error('❌ Telegram test failed:', error.message);
+    res.status(500).json({ 
+      status: 'error', 
+      message: error.message 
+    });
+  }
+});
+
+// Add an ultra-simple test endpoint
+app.get('/test-ultra-simple', async (req, res) => {
+  try {
+    console.log('🔍 Starting ultra-simple test...');
+    
+    const users = loadUsers();
+    if (users.length === 0) {
+      return res.json({ status: 'error', message: 'No users found' });
+    }
+    
+    const user = users[0];
+    
+    // Create the simplest possible message
+    const ultraSimpleMessage = `HikeCast Test Message
+
+Hello ${user.name}!
+
+This is a test from your HikeCast bot.
+Time: ${new Date().toLocaleString()}
+
+If you receive this, the Telegram integration is working!`;
+    
+    console.log(`🔍 Message length: ${ultraSimpleMessage.length}`);
+    console.log(`🔍 Message content:\n${ultraSimpleMessage}`);
+    
+    if (user.channels.includes('telegram') && user.telegram_chat_id) {
+      await sendTelegram(user.telegram_chat_id, ultraSimpleMessage);
+    }
+    
+    res.json({ 
+      status: 'success', 
+      message: 'Ultra-simple test completed',
+      messageLength: ultraSimpleMessage.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Ultra-simple test failed:', error.message);
+    res.status(500).json({ 
+      status: 'error', 
+      message: error.message 
+    });
+  }
+});
+
+// Add a test endpoint specifically for Gemini API:
+app.get('/test-gemini', async (req, res) => {
+  try {
+    console.log('🔍 Testing Gemini API...');
+    
+    if (!genAI) {
+      return res.json({ 
+        status: 'error', 
+        message: 'Gemini API key not set' 
+      });
+    }
+    
+    const testPrompt = `
+Test prompt for Gemini API.
+
+Please respond with:
+1. Current time and date
+2. A brief message confirming the API is working
+3. The model you are using
+
+Keep the response short and simple.
+`;
+    
+    console.log(`🔍 Sending test request to Gemini...`);
+    
+    // Use the correct API structure
+    const response = await genAI.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: testPrompt,
+    });
+    
+    console.log(`✅ Gemini test response received`);
+    console.log(`Response: ${response.text.substring(0, 200)}...`);
+    
+    res.json({
+      status: 'success',
+      message: 'Gemini API test completed',
+      model: 'gemini-2.5-flash',
+      responseLength: response.text.length,
+      responsePreview: response.text.substring(0, 300) + (response.text.length > 300 ? '...' : ''),
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Gemini test failed:', error.message);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+      error_type: error.constructor.name,
+      timestamp: new Date().toISOString()
+    });
   }
 });
