@@ -1,156 +1,234 @@
-# HikeCastBot (Node.js, Render, Express, node-cron)
+# HikeCastBot 🏔️ - AI-Powered Hiking Weather Notifications
 
-A cloud-based notification robot that sends hiking weather updates via Telegram, Email, and (optionally) WhatsApp. Now runs as a persistent web service with per-user scheduled notifications.
+A cloud-based notification bot that sends intelligent hiking weather updates via Telegram, Email, and (optionally) WhatsApp. Features AI-powered weather analysis using Google's Gemini AI to provide personalized hiking recommendations.
 
-## Features
-- Multi-location, multi-channel notifications
-- Per-user scheduling (cron format)
-- User preferences in `users.json` (not tracked in git)
-- Example user data in `users.example.json`
-- Weather data from Open-Meteo (no API key required)
-- Telegram and Email notifications (WhatsApp: optional)
-- Deployable as a Web Service on [Render](https://render.com/)
-- **Health endpoint** for uptime monitoring and keeping the service warm
+## ✨ Features
 
-## Notification Channels Status
+### 🤖 AI-Powered Analysis
+- **Gemini AI Integration**: Advanced weather analysis with hiking-specific recommendations
+- **Smart Suggestions**: Hiking suitability ratings, gear recommendations, and safety warnings
+- **Alternative Activities**: Suggestions for indoor/outdoor alternatives when hiking isn't ideal
 
-### ✅ Telegram
-- Fully configured and working
-- Real-time weather data delivery
-- Markdown formatting support
+### 📱 Multi-Channel Notifications
+- **Telegram**: Real-time notifications with Markdown formatting
+- **Email**: HTML-formatted messages via Gmail SMTP
+- **WhatsApp**: Template-based messages (limited functionality)
 
-### ✅ Email  
-- Fully configured and working
-- Gmail SMTP with app password
-- HTML formatted messages
+### ⚙️ Advanced Scheduling
+- **Per-User Scheduling**: Customizable cron-based notification times
+- **Timezone Support**: Notifications sent in user's local timezone
+- **Multi-Location**: Monitor weather for multiple hiking destinations
 
-### ⚠️ WhatsApp (Partial Configuration)
-- **Status**: Permanent API access token configured
-- **Current**: Can send `hello_world` template messages only
-- **Limitations**: 
-  - Meta rate limits for adding test phone numbers
-  - Custom weather template approval needed for actual weather data
-  - Currently limited to verified test numbers only
+### 🌤️ Comprehensive Weather Data
+- **Open-Meteo API**: Reliable weather data without API key requirements
+- **2-Day Forecasts**: Today and tomorrow's weather conditions
+- **Detailed Metrics**: Temperature, precipitation, weather conditions
+- **Human-Readable**: Weather codes converted to descriptive text
 
-**WhatsApp Setup Progress:**
-- [x] Meta Developer Account created
-- [x] WhatsApp Business App configured  
-- [x] System User with permanent token generated
-- [x] Webhook endpoints implemented (`/webhook`)
-- [ ] Test phone number verification (Meta rate limited)
-- [ ] Custom weather message template creation & approval
-- [ ] Production app review (for unrestricted messaging)
+## 🚀 Quick Start
 
-## Setup
+### Prerequisites
+- Node.js 16+ 
+- Gmail account with App Password
+- Telegram Bot Token
+- Google Gemini API Key
+- (Optional) WhatsApp Business API access
 
-1. **Clone the repo and install dependencies:**
+### Installation
+
+1. **Clone and install dependencies:**
    ```bash
+   git clone <your-repo-url>
+   cd HikeCast
    npm install
    ```
 
 2. **Configure environment variables:**
-   - Copy `.env.example` to `.env` and fill in your secrets:
-     - `TELEGRAM_BOT_TOKEN` (Telegram Bot)
-     - `GMAIL_USER` and `GMAIL_PASS` (Gmail SMTP, App Password)
-     - (Optional) WhatsApp Cloud API variables:
-       - `WHATSAPP_ACCESS_TOKEN` (System User Token - Permanent)
-       - `WHATSAPP_PHONE_NUMBER_ID` (Phone Number ID from Meta)
-       - `WHATSAPP_VERIFY_TOKEN` (Webhook verification token)
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys and credentials
+   ```
 
-3. **Prepare user data:**
-   - Copy `users.example.json` to `users.json` and edit with your real user/location/channel/schedule info.
-   - **Do NOT commit `users.json` to git!** It is in `.gitignore` for privacy.
+3. **Set up user preferences:**
+   ```bash
+   cp users.example.json users.json
+   # Edit users.json with your locations and notification preferences
+   ```
 
-4. **Run locally:**
+4. **Run the application:**
    ```bash
    npm start
    # Visit http://localhost:3000 to check status
-   # Notifications will be sent at the times specified in each user's schedule
-   # Visit http://localhost:3000/health to check the health endpoint
    ```
 
-## Deployment (Render Web Service)
+## 🔧 Configuration
 
-1. **Push your code to GitHub.**
-2. **Create a new Web Service on [Render](https://render.com/):**
-   - Connect your GitHub repo.
-   - Set the start command to `npm start`.
-   - Add your environment variables in the Render dashboard.
-   - After deploy, upload your real `users.json` via the Render dashboard (or use a Render Secret/File).
-3. **Your bot will now send notifications at the times specified in each user's `schedule`!**
+### Environment Variables (.env)
+```env
+# Required
+TELEGRAM_BOT_TOKEN=your-telegram-bot-token
+GMAIL_USER=your-email@gmail.com
+GMAIL_PASS=your-gmail-app-password
+GEMINI_API_KEY=your-gemini-api-key
 
-## Health Endpoint & Keeping the Service Warm
-
-- The bot exposes a `/health` endpoint:
-  - Example: `https://your-app-name.onrender.com/health`
-  - Returns a JSON status and timestamp.
-- **Why is this important?**
-  - Free Render web services "sleep" after 15 minutes of inactivity, which can delay scheduled notifications.
-  - To keep your service "warm" and ensure scheduled jobs run on time, use an external service (like UptimeRobot) to ping the `/health` endpoint every 5 minutes.
-
-### Example `/health` response
-```json
-{
-  "status": "ok",
-  "time": "2025-07-23T12:34:56.789Z"
-}
+# Optional (WhatsApp)
+WHATSAPP_ACCESS_TOKEN=your-whatsapp-access-token
+WHATSAPP_PHONE_NUMBER_ID=your-phone-number-id
+WHATSAPP_VERIFY_TOKEN=your-verify-token
 ```
 
-### How to set up UptimeRobot
-1. Sign up at [UptimeRobot](https://uptimerobot.com/).
-2. Add a new HTTP(s) monitor for your `/health` endpoint.
-3. Set the interval to 5 minutes (free tier minimum).
-4. This will keep your service awake and your scheduled notifications reliable.
-
-## API Endpoints
-
-- `GET /` - Service status and information
-- `GET /health` - Health check for uptime monitoring  
-- `GET /test-notify` - Send test notifications to all users
-- `GET /webhook` - WhatsApp webhook verification endpoint
-- `POST /webhook` - WhatsApp message receiver endpoint
-
-## User Data Example
-See `users.example.json` for the required structure:
+### User Configuration (users.json)
 ```json
 [
   {
-    "name": "SampleUser",
-    "locations": ["Sample City,Country"],
-    "channels": ["telegram", "email", "whatsapp"],
+    "name": "Your Name",
+    "locations": ["Stuttgart, Germany", "Munich, Germany"],
+    "channels": ["telegram", "email"],
     "telegram_chat_id": "123456789",
-    "email": "sampleuser@example.com",
-    "whatsapp": "+10000000000",
-    "schedule": "0 7 * * 6",
-    "timezone": "America/New_York"
+    "email": "your-email@example.com",
+    "whatsapp": "+1234567890",
+    "schedule": "0 7,18 * * *",
+    "timezone": "Europe/Berlin"
   }
 ]
 ```
 
-## Security & Privacy
-- **users.json** is in `.gitignore` and should never be committed to a public repo.
-- Store secrets (API keys, passwords) in environment variables, not in code.
-- WhatsApp webhook endpoints include verification for security.
+#### Schedule Format (Cron)
+- `0 7 * * *` - Daily at 7:00 AM
+- `0 7,18 * * *` - Daily at 7:00 AM and 6:00 PM
+- `0 7 * * 1-5` - Weekdays at 7:00 AM
+- `0 8 * * 6,0` - Weekends at 8:00 AM
 
-## WhatsApp Configuration Notes
+## 🤖 AI Features
 
-### Current Limitations:
-- Only `hello_world` template messages work currently
-- Cannot send custom weather data until template approval
-- Limited to Meta-verified test phone numbers
-- Meta has rate limits for adding new test numbers
+### Gemini Analysis Provides:
+1. **Hiking Suitability Rating** (1-10 scale)
+2. **Gear Recommendations** (clothing, equipment)
+3. **Optimal Timing** (best hours for hiking)
+4. **Safety Warnings** (weather-related risks)
+5. **Alternative Activities** (when hiking isn't recommended)
 
-### For Full WhatsApp Functionality:
-1. **Create Custom Weather Template** in Meta Business Manager
-2. **Submit for Template Approval** (24-48 hours)
-3. **Add Test Phone Numbers** (when Meta limits allow)
-4. **Production App Review** (for messaging any number)
+### Sample AI Output:
+```
+🤖 AI Hiking Analysis:
+**Hiking Suitability: 8/10**
 
-## Extending
-- Analyze weather data using Gemini API, give recommendations, or send alerts.
-- Add WhatsApp support by integrating with the WhatsApp Cloud API.
-- Move user data to a database for dynamic management.
-- Add a web UI for user management.
+**Gear Recommendations:**
+- Lightweight rain jacket (light drizzle expected)
+- Layered clothing for temperature changes
+- Non-slip hiking boots for wet conditions
 
-## License
-MIT
+**Best Time:** Morning hours (8-11 AM) before precipitation increases
+
+**Safety Notes:** Trail surfaces may be slippery due to morning drizzle
+
+**Alternatives:** Indoor climbing gym if conditions worsen
+```
+
+## 🌐 Deployment
+
+### Render Web Service
+1. **Push to GitHub**
+2. **Create Render Web Service:**
+   - Connect your repository
+   - Set start command: `npm start`
+   - Add environment variables
+   - Upload your `users.json` file
+3. **Keep Service Warm:**
+   - Use UptimeRobot to ping `/health` endpoint every 5 minutes
+   - Prevents free tier services from sleeping
+
+### Health Monitoring
+- **Endpoint**: `GET /health`
+- **Response**: `{"status": "ok", "time": "2024-01-01T00:00:00.000Z"}`
+- **Purpose**: Keep service active and monitor uptime
+
+## 📡 API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Service status |
+| `/health` | GET | Health check for monitoring |
+| `/test-notify` | GET | Send test notifications |
+| `/webhook` | GET | WhatsApp webhook verification |
+| `/webhook` | POST | WhatsApp message receiver |
+
+## 📱 Notification Channels Status
+
+### ✅ Telegram - Fully Functional
+- Real-time delivery
+- Markdown formatting
+- Emoji support
+- Error handling
+
+### ✅ Email - Fully Functional  
+- Gmail SMTP integration
+- HTML formatting
+- Reliable delivery
+- Attachment support
+
+### ⚠️ WhatsApp - Limited Functionality
+**Current Status:**
+- ✅ API configured with permanent token
+- ✅ Template message sending (`hello_world`)
+- ❌ Custom weather messages (requires template approval)
+- ❌ Unrestricted messaging (requires app review)
+
+**Limitations:**
+- Only verified test numbers
+- Template messages only
+- Meta rate limits for test numbers
+
+## 🔐 Security & Privacy
+
+- **Sensitive Data**: `users.json` and `.env` excluded from git
+- **API Keys**: Stored as environment variables
+- **Webhook Security**: Token verification for WhatsApp
+- **Error Handling**: Graceful fallbacks for API failures
+
+## 🛠️ Development
+
+### Adding New Features
+```javascript
+// Example: Add new weather parameter
+async function analyzeWeatherWithGemini(weatherData, location) {
+  const prompt = `
+    Weather Details:
+    - Humidity: ${weatherData.humidity}%
+    - Wind Speed: ${weatherData.windSpeed} km/h
+    // ... additional parameters
+  `;
+}
+```
+
+### Testing
+```bash
+# Test notifications
+curl http://localhost:3000/test-notify
+
+# Check health
+curl http://localhost:3000/health
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [Open-Meteo](https://open-meteo.com/) - Free weather API
+- [Google Gemini AI](https://ai.google.dev/) - AI-powered analysis
+- [Telegram Bot API](https://core.telegram.org/bots/api) - Messaging platform
+- [Render](https://render.com/) - Cloud hosting platform
+
+---
+
+**Made with ❤️ for hiking enthusiasts**
