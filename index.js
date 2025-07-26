@@ -23,7 +23,17 @@ const genAI = GEMINI_API_KEY ? new GoogleGenAI({ apiKey: GEMINI_API_KEY }) : nul
 
 // Load user preferences from JSON
 function loadUsers() {
-  return JSON.parse(fs.readFileSync('users.json', 'utf8'));
+  try {
+    if (!fs.existsSync('users.json')) {
+      console.warn('users.json file not found');
+      return [];
+    }
+    const data = fs.readFileSync('users.json', 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error loading users.json:', error);
+    return [];
+  }
 }
 
 // Geocode location to lat/lon using Open-Meteo's geocoding API
@@ -44,20 +54,36 @@ async function geocodeLocation(location) {
 
 // Fetch weather data for a location using Open-Meteo
 async function getWeather(location) {
-  const geo = await geocodeLocation(location);
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${geo.lat}&longitude=${geo.lon}&current=temperature_2m,weathercode,windspeed_10m&hourly=temperature_2m,precipitation,weathercode,windspeed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&forecast_days=7&timezone=auto`;
-  const response = await axios.get(url);
-  return { geo, weather: response.data };
+  try {
+    const geo = await geocodeLocation(location);
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${geo.lat}&longitude=${geo.lon}&current=temperature_2m,weathercode,windspeed_10m&hourly=temperature_2m,precipitation,weathercode,windspeed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&forecast_days=7&timezone=auto`;
+    const response = await axios.get(url);
+    return { geo, weather: response.data };
+  } catch (error) {
+    console.error(`Error fetching weather for ${location}:`, error.message);
+    throw error;
+  }
 }
 
 // Send Telegram message
 async function sendTelegram(chatId, message) {
-  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-  await axios.post(url, {
-    chat_id: chatId,
-    text: message,
-    parse_mode: 'Markdown'
-  });
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.warn('TELEGRAM_BOT_TOKEN not set, skipping Telegram message.');
+    return;
+  }
+  
+  try {
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+    await axios.post(url, {
+      chat_id: chatId,
+      text: message,
+      parse_mode: 'Markdown'
+    });
+    console.log(`Telegram message sent successfully to ${chatId}`);
+  } catch (error) {
+    console.error('Error sending Telegram message:', error.response?.data || error.message);
+    throw error;
+  }
 }
 
 async function sendEmail(email, subject, message) {
@@ -65,21 +91,28 @@ async function sendEmail(email, subject, message) {
     console.warn('GMAIL_USER or GMAIL_PASS not set, skipping email.');
     return;
   }
-  let transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: gmailUser,
-      pass: gmailPass,
-    },
-  });
+  
+  try {
+    let transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: gmailUser,
+        pass: gmailPass,
+      },
+    });
 
-  await transporter.sendMail({
-    from: `"HikeCastBot" <${gmailUser}>`,
-    to: email,
-    subject: subject,
-    text: message,
-    html: `<pre>${message}</pre>`,
-  });
+    await transporter.sendMail({
+      from: `"HikeCastBot" <${gmailUser}>`,
+      to: email,
+      subject: subject,
+      text: message,
+      html: `<pre>${message}</pre>`,
+    });
+    console.log(`Email sent successfully to ${email}`);
+  } catch (error) {
+    console.error('Error sending email:', error.message);
+    throw error;
+  }
 }
 
 // WhatsApp notification using Meta Business Platform
@@ -277,68 +310,91 @@ function getRequestedForecastDays(weather, user) {
 }
 
 async function notifyUser(user) {
+  console.log(`Starting notifications for ${user.name}`);
+  
   for (const location of user.locations) {
-    const { geo, weather } = await getWeather(location);
-    
-    // Get requested forecast days
-    const forecastDays = getRequestedForecastDays(weather, user);
-    
-    if (forecastDays.length === 0) {
-      console.warn(`No matching forecast days found for ${user.name}`);
-      continue;
-    }
-    
-    // Create message header
-    let message = `🏔️ **Hiking Weather for ${geo.name}, ${geo.country}**\n\n`;
-    
-    // Process each requested day
-    for (let i = 0; i < forecastDays.length; i++) {
-      const dayData = forecastDays[i];
-      const isLastDay = i === forecastDays.length - 1;
+    try {
+      console.log(`Fetching weather for ${location}`);
+      const { geo, weather } = await getWeather(location);
       
-      // Add day header with both day name and relative position
-      message += `📅 **${dayData.dayName}, ${getFormattedDate(dayData.date)}** (${dayData.relativeLabel}):\n`;
-      message += `🌡️ **Temperature**: ${dayData.tempMax}°C / ${dayData.tempMin}°C\n`;
-      message += `🌧️ **Precipitation**: ${dayData.precip}mm\n`;
-      message += `☁️ **Conditions**: ${getWeatherDescription(dayData.weatherCode)}\n\n`;
+      // Get requested forecast days
+      const forecastDays = getRequestedForecastDays(weather, user);
       
-      // Get Gemini analysis for this day
-      const geminiAnalysis = await analyzeWeatherWithGemini({
-        date: dayData.date,
-        tempMax: dayData.tempMax,
-        tempMin: dayData.tempMin,
-        precip: dayData.precip,
-        weatherCode: dayData.weatherCode,
-        dayLabel: `${dayData.dayName} (${dayData.relativeLabel})`
-      }, `${geo.name}, ${geo.country}`);
-      
-      if (geminiAnalysis) {
-        message += `🤖 **AI Analysis for ${dayData.dayName}**:\n${geminiAnalysis}`;
-      } else {
-        message += `📊 **Basic Assessment**: Check weather conditions before heading out!`;
+      if (forecastDays.length === 0) {
+        console.warn(`No matching forecast days found for ${user.name} at ${location}`);
+        continue;
       }
       
-      // Add separator between days (except for the last day)
-      if (!isLastDay) {
-        message += `\n\n${'─'.repeat(40)}\n\n`;
+      // Create message header
+      let message = `🏔️ **Hiking Weather for ${geo.name}, ${geo.country}**\n\n`;
+      
+      // Process each requested day
+      for (let i = 0; i < forecastDays.length; i++) {
+        const dayData = forecastDays[i];
+        const isLastDay = i === forecastDays.length - 1;
+        
+        // Add day header with both day name and relative position
+        message += `📅 **${dayData.dayName}, ${getFormattedDate(dayData.date)}** (${dayData.relativeLabel}):\n`;
+        message += `🌡️ **Temperature**: ${dayData.tempMax}°C / ${dayData.tempMin}°C\n`;
+        message += `🌧️ **Precipitation**: ${dayData.precip}mm\n`;
+        message += `☁️ **Conditions**: ${getWeatherDescription(dayData.weatherCode)}\n\n`;
+        
+        // Get Gemini analysis for this day
+        try {
+          const geminiAnalysis = await analyzeWeatherWithGemini({
+            date: dayData.date,
+            tempMax: dayData.tempMax,
+            tempMin: dayData.tempMin,
+            precip: dayData.precip,
+            weatherCode: dayData.weatherCode,
+            dayLabel: `${dayData.dayName} (${dayData.relativeLabel})`
+          }, `${geo.name}, ${geo.country}`);
+          
+          if (geminiAnalysis) {
+            message += `🤖 **AI Analysis for ${dayData.dayName}**:\n${geminiAnalysis}`;
+          } else {
+            message += `📊 **Basic Assessment**: Check weather conditions before heading out!`;
+          }
+        } catch (error) {
+          console.error(`Gemini analysis failed for ${dayData.dayName}:`, error.message);
+          message += `📊 **Basic Assessment**: Check weather conditions before heading out!`;
+        }
+        
+        // Add separator between days (except for the last day)
+        if (!isLastDay) {
+          message += `\n\n${'─'.repeat(40)}\n\n`;
+        }
       }
+      
+      // Create subject line that includes all days
+      const dayNames = forecastDays.map(d => d.dayName).join(', ');
+      const subject = `🏔️ ${dayNames} Hiking Weather & AI Analysis for ${geo.name}`;
+      
+      // Send notifications with individual error handling
+      const promises = [];
+      
+      if (user.channels.includes('telegram') && user.telegram_chat_id) {
+        promises.push(
+          sendTelegram(user.telegram_chat_id, message)
+            .catch(error => console.error(`Telegram failed for ${user.name}:`, error.message))
+        );
+      }
+      
+      if (user.channels.includes('email') && user.email) {
+        promises.push(
+          sendEmail(user.email, subject, message)
+            .catch(error => console.error(`Email failed for ${user.name}:`, error.message))
+        );
+      }
+      
+      // Wait for all notifications to complete (or fail)
+      await Promise.allSettled(promises);
+      console.log(`Notifications completed for ${user.name} at ${location}`);
+      
+    } catch (error) {
+      console.error(`Error processing location ${location} for ${user.name}:`, error.message);
+      // Continue with next location instead of stopping completely
     }
-    
-    // Create subject line that includes all days
-    const dayNames = forecastDays.map(d => d.dayName).join(', ');
-    const subject = `🏔️ ${dayNames} Hiking Weather & AI Analysis for ${geo.name}`;
-    
-    // Send notifications
-    if (user.channels.includes('telegram') && user.telegram_chat_id) {
-      await sendTelegram(user.telegram_chat_id, message);
-    }
-    if (user.channels.includes('email') && user.email) {
-      await sendEmail(user.email, subject, message);
-    }
-    // TODO: WhatsApp functionality - temporarily commented out due to Meta API limitations
-    // if (user.channels.includes('whatsapp') && user.whatsapp) {
-    //   await sendWhatsApp(user.whatsapp, message);
-    // }
   }
 }
 
@@ -749,23 +805,77 @@ app.get('/check-extreme-weather', async (req, res) => {
   }
 });
 
+// Debug endpoint to check environment and user data
+app.get('/debug', (req, res) => {
+  try {
+    const users = loadUsers();
+    res.json({
+      status: 'HikeCast Debug Info',
+      timestamp: new Date().toISOString(),
+      environment: {
+        TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN ? 'Set' : 'Not Set',
+        GMAIL_USER: process.env.GMAIL_USER ? 'Set' : 'Not Set',
+        GMAIL_PASS: process.env.GMAIL_PASS ? 'Set' : 'Not Set',
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY ? 'Set' : 'Not Set',
+        WHATSAPP_ACCESS_TOKEN: process.env.WHATSAPP_ACCESS_TOKEN ? 'Set' : 'Not Set',
+        WHATSAPP_PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID ? 'Set' : 'Not Set'
+      },
+      files: {
+        usersJsonExists: fs.existsSync('users.json'),
+        usersCount: users.length
+      },
+      users: users.map(user => ({
+        name: user.name,
+        locations: user.locations,
+        channels: user.channels,
+        hasValidTelegramId: !!user.telegram_chat_id,
+        hasValidEmail: !!user.email
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 app.listen(PORT, async () => {
   console.log(`Server listening on port ${PORT}`);
   scheduleNotifications();
-  scheduleExtremeWeatherChecks(); // Add extreme weather monitoring
+  scheduleExtremeWeatherChecks();
   
   // Send notification to all users immediately at deployment
   try {
+    console.log('Starting deployment notifications...');
     const users = loadUsers();
-    for (const user of users) {
-      await notifyUser(user);
+    console.log(`Loaded ${users.length} users`);
+    
+    if (users.length === 0) {
+      console.warn('No users found in users.json');
+      return;
     }
-    console.log('Deployment notification sent to all users.');
+    
+    for (const user of users) {
+      try {
+        console.log(`Sending notification to ${user.name}`);
+        await notifyUser(user);
+        console.log(`✅ Notification sent to ${user.name}`);
+      } catch (error) {
+        console.error(`❌ Failed to notify ${user.name}:`, error.message);
+        // Continue with next user instead of stopping
+      }
+    }
+    console.log('Deployment notifications completed.');
     
     // Check for extreme weather on startup
+    console.log('Starting initial extreme weather check...');
     await checkExtremeWeatherForAllUsers();
     console.log('Initial extreme weather check completed.');
+    
   } catch (err) {
-    console.error('Error sending deployment notification:', err);
+    console.error('Error in startup process:', err.message);
+    console.error('Stack trace:', err.stack);
   }
 });
