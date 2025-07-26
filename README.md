@@ -261,17 +261,30 @@ Perfect hiking conditions! Clear skies and mild temperatures...
 - Multi-day forecast support
 - **Extreme weather alerts**
 
-### ⚠️ WhatsApp - Limited Functionality
+### 🚧 WhatsApp - Work in Progress
 **Current Status:**
 - ✅ API configured with permanent token
 - ✅ Template message sending (`hello_world`)
-- ❌ Custom weather messages (requires template approval)
-- ❌ Unrestricted messaging (requires app review)
+- 🚧 Custom weather messages (requires template approval)
+- 🚧 Unrestricted messaging (requires app review)
+- ❌ Extreme weather alerts (template limitations)
 
-**Limitations:**
+**Development Progress:**
+- [x] Meta Developer Account created
+- [x] WhatsApp Business App configured  
+- [x] System User with permanent token generated
+- [x] Webhook endpoints implemented (`/webhook`)
+- [ ] Test phone number verification (Meta rate limited)
+- [ ] Custom weather message template creation & approval
+- [ ] Production app review (for unrestricted messaging)
+
+**Current Limitations:**
 - Only verified test numbers
 - Template messages only
 - Meta rate limits for test numbers
+- No custom weather data until template approval
+
+**Note:** WhatsApp functionality is temporarily commented out in the code due to Meta API limitations. Once template approval is completed, full weather notifications will be available.
 
 ## 🔐 Security & Privacy
 
