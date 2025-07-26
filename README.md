@@ -175,11 +175,61 @@ WHATSAPP_VERIFY_TOKEN=your-verify-token
   - `1` = Tomorrow
   - `2` = Day after tomorrow, etc.
 
+**Note**: Extreme weather alerts are sent regardless of `forecastDays` settings to ensure safety.
+
 #### Schedule Format (Cron)
 - `0 7 * * *` - Daily at 7:00 AM
 - `0 7,18 * * *` - Daily at 7:00 AM and 6:00 PM
 - `0 7 * * 1-5` - Weekdays at 7:00 AM
 - `0 8 * * 6,0` - Weekends at 8:00 AM
+
+## 📡 API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Service status |
+| `/health` | GET | Health check for monitoring |
+| `/test-notify` | GET | Send test notifications to all users |
+| `/test-simple` | GET | Send simplified test notification (no AI) |
+| `/test-telegram-only` | GET | Test Telegram integration only |
+| `/test-ultra-simple` | GET | Ultra-simple Telegram test message |
+| `/test-gemini` | GET | Test Gemini AI API connectivity |
+| `/check-extreme-weather` | GET | Manual extreme weather check |
+| `/debug` | GET | System debug information |
+| `/webhook` | GET | WhatsApp webhook verification |
+| `/webhook` | POST | WhatsApp message receiver |
+
+### Testing Endpoints
+
+#### Basic Testing
+```bash
+# Test all notification channels
+curl http://localhost:3000/test-notify
+
+# Quick simple test (no AI)
+curl http://localhost:3000/test-simple
+
+# Test only Telegram
+curl http://localhost:3000/test-telegram-only
+
+# Ultra-simple test message
+curl http://localhost:3000/test-ultra-simple
+```
+
+#### AI & System Testing
+```bash
+# Test Gemini AI integration
+curl http://localhost:3000/test-gemini
+
+# Check system configuration
+curl http://localhost:3000/debug
+
+# Manual extreme weather check
+curl http://localhost:3000/check-extreme-weather
+
+# Health check
+curl http://localhost:3000/health
+```
 
 ## 🤖 AI Features
 
@@ -189,6 +239,13 @@ WHATSAPP_VERIFY_TOKEN=your-verify-token
 3. **Optimal Timing** (best hours for hiking)
 4. **Safety Warnings** (weather-related risks)
 5. **Alternative Activities** (when hiking isn't recommended)
+
+### Emergency Weather Analysis
+1. **Immediate Safety Actions** (urgent steps to take)
+2. **Life Safety Risks** (specific dangers to humans)
+3. **Activity Prohibitions** (what must be avoided)
+4. **Emergency Preparedness** (supplies and planning)
+5. **Recovery Timeline** (when conditions improve)
 
 ### Sample Multi-Day Output:
 ```
@@ -215,6 +272,13 @@ Hiking Suitability: 10/10
 Perfect hiking conditions! Clear skies and mild temperatures...
 ```
 
+## 🔄 Monitoring Schedule
+
+- **Regular Forecasts**: Based on user's cron schedule
+- **Extreme Weather Checks**: Every 2 hours automatically
+- **Startup Check**: Immediate check when service starts
+- **Manual Triggers**: Available via API endpoints
+
 ## 🌐 Deployment
 
 ### Render Web Service
@@ -233,25 +297,16 @@ Perfect hiking conditions! Clear skies and mild temperatures...
 - **Response**: `{"status": "ok", "time": "2024-01-01T00:00:00.000Z"}`
 - **Purpose**: Keep service active and monitor uptime
 
-## 📡 API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Service status |
-| `/health` | GET | Health check for monitoring |
-| `/test-notify` | GET | Send test notifications |
-| `/webhook` | GET | WhatsApp webhook verification |
-| `/webhook` | POST | WhatsApp message receiver |
-
 ## 📱 Notification Channels Status
 
 ### ✅ Telegram - Fully Functional
 - Real-time delivery
-- Markdown formatting
+- Markdown formatting (converted to plain text)
 - Emoji support
 - Error handling
 - Multi-day forecast support
 - **Extreme weather alerts**
+- Long message splitting support
 
 ### ✅ Email - Fully Functional  
 - Gmail SMTP integration
@@ -309,18 +364,6 @@ async function analyzeWeatherWithGemini(weatherData, location) {
 }
 ```
 
-### Testing
-```bash
-# Manual extreme weather check
-curl http://localhost:3000/check-extreme-weather
-
-# Test regular notifications
-curl http://localhost:3000/test-notify
-
-# Check health
-curl http://localhost:3000/health
-```
-
 ### Customizing Alert Thresholds
 Modify the `EXTREME_WEATHER_THRESHOLDS` object in [index.js](index.js):
 
@@ -329,16 +372,40 @@ const EXTREME_WEATHER_THRESHOLDS = {
   temperature: {
     extremeHot: 35,      // Adjust temperature thresholds
     extremeCold: -10,
-    // ...
+    heatWave: 30,        // Heat wave threshold
+    coldWave: 0          // Cold wave threshold
   },
   precipitation: {
-    heavy: 20,           // Adjust precipitation thresholds
-    extreme: 50,
-    // ...
+    heavy: 20,           // Heavy rain threshold
+    extreme: 50,         // Extreme rain threshold
+    hourlyHeavy: 10      // Hourly heavy rain
+  },
+  wind: {
+    strong: 50,          // Strong wind threshold
+    extreme: 80          // Extreme wind threshold
+  },
+  weatherCodes: {
+    dangerous: [95, 96, 99, 65, 75, 82], // Critical weather codes
+    severe: [63, 73, 81, 45, 48]         // High severity codes
   }
-  // ...
 };
 ```
+
+### Testing & Debugging
+
+#### Progressive Testing Approach
+1. **Ultra Simple**: `curl /test-ultra-simple` - Basic connectivity
+2. **Telegram Only**: `curl /test-telegram-only` - Weather without AI
+3. **Simple Test**: `curl /test-simple` - Weather with minimal formatting
+4. **Gemini Test**: `curl /test-gemini` - AI functionality
+5. **Full Test**: `curl /test-notify` - Complete workflow
+6. **Debug Info**: `curl /debug` - System configuration
+
+#### Common Issues & Solutions
+- **Gemini API Errors**: Check API key and model availability
+- **Telegram Formatting**: Messages automatically converted to plain text
+- **Message Length**: Long messages automatically split
+- **Environment Variables**: Use `/debug` to verify configuration
 
 ## 🤝 Contributing
 
@@ -361,4 +428,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ for hiking enthusiasts**
+**Made with ❤️ for hiking enthusiasts - Stay Safe! 🚨**
