@@ -45,7 +45,7 @@ async function geocodeLocation(location) {
 // Fetch weather data for a location using Open-Meteo
 async function getWeather(location) {
   const geo = await geocodeLocation(location);
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${geo.lat}&longitude=${geo.lon}&hourly=temperature_2m,precipitation,weathercode&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&forecast_days=2&timezone=auto`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${geo.lat}&longitude=${geo.lon}&current=temperature_2m,weathercode,windspeed_10m&hourly=temperature_2m,precipitation,weathercode,windspeed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&forecast_days=7&timezone=auto`;
   const response = await axios.get(url);
   return { geo, weather: response.data };
 }
@@ -342,6 +342,296 @@ async function notifyUser(user) {
   }
 }
 
+// Define extreme weather thresholds
+const EXTREME_WEATHER_THRESHOLDS = {
+  temperature: {
+    extremeHot: 35,      // °C
+    extremeCold: -10,    // °C
+    heatWave: 30,        // °C for multiple days
+    coldWave: 0          // °C for multiple days
+  },
+  precipitation: {
+    heavy: 20,           // mm/day
+    extreme: 50,         // mm/day
+    hourlyHeavy: 10      // mm/hour
+  },
+  wind: {
+    strong: 50,          // km/h
+    extreme: 80          // km/h
+  },
+  weatherCodes: {
+    dangerous: [95, 96, 99, 65, 75, 82], // Thunderstorms, heavy rain/snow, violent showers
+    severe: [63, 73, 81, 45, 48]         // Moderate rain/snow, fog
+  }
+};
+
+// Check if weather conditions are extreme or dangerous
+function analyzeExtremeWeather(weatherData, location) {
+  const alerts = [];
+  const current = weatherData.current || {};
+  const daily = weatherData.daily;
+  const hourly = weatherData.hourly;
+  
+  // Check current conditions
+  if (current.temperature_2m !== undefined) {
+    if (current.temperature_2m >= EXTREME_WEATHER_THRESHOLDS.temperature.extremeHot) {
+      alerts.push({
+        type: 'EXTREME_HEAT',
+        severity: 'CRITICAL',
+        message: `🔥 EXTREME HEAT WARNING: ${current.temperature_2m}°C - Hiking NOT recommended`
+      });
+    } else if (current.temperature_2m <= EXTREME_WEATHER_THRESHOLDS.temperature.extremeCold) {
+      alerts.push({
+        type: 'EXTREME_COLD',
+        severity: 'CRITICAL',
+        message: `🥶 EXTREME COLD WARNING: ${current.temperature_2m}°C - Risk of hypothermia`
+      });
+    }
+  }
+  
+  // Check daily forecasts for extreme conditions
+  for (let i = 0; i < Math.min(3, daily.time.length); i++) {
+    const dayData = {
+      date: daily.time[i],
+      tempMax: daily.temperature_2m_max[i],
+      tempMin: daily.temperature_2m_min[i],
+      precip: daily.precipitation_sum[i],
+      weatherCode: daily.weathercode[i]
+    };
+    
+    const dayName = getDayName(dayData.date);
+    const relativeDay = getRelativeDayLabel(i);
+    
+    // Temperature extremes
+    if (dayData.tempMax >= EXTREME_WEATHER_THRESHOLDS.temperature.extremeHot) {
+      alerts.push({
+        type: 'EXTREME_HEAT',
+        severity: 'HIGH',
+        day: dayName,
+        relativeDay,
+        message: `🔥 HEAT WARNING ${relativeDay}: ${dayData.tempMax}°C expected - High heat exhaustion risk`
+      });
+    }
+    
+    if (dayData.tempMin <= EXTREME_WEATHER_THRESHOLDS.temperature.extremeCold) {
+      alerts.push({
+        type: 'EXTREME_COLD',
+        severity: 'HIGH',
+        day: dayName,
+        relativeDay,
+        message: `🥶 COLD WARNING ${relativeDay}: ${dayData.tempMin}°C expected - Hypothermia risk`
+      });
+    }
+    
+    // Precipitation extremes
+    if (dayData.precip >= EXTREME_WEATHER_THRESHOLDS.precipitation.extreme) {
+      alerts.push({
+        type: 'EXTREME_PRECIPITATION',
+        severity: 'CRITICAL',
+        day: dayName,
+        relativeDay,
+        message: `🌊 EXTREME RAIN WARNING ${relativeDay}: ${dayData.precip}mm expected - Flash flood risk`
+      });
+    } else if (dayData.precip >= EXTREME_WEATHER_THRESHOLDS.precipitation.heavy) {
+      alerts.push({
+        type: 'HEAVY_PRECIPITATION',
+        severity: 'HIGH',
+        day: dayName,
+        relativeDay,
+        message: `🌧️ HEAVY RAIN WARNING ${relativeDay}: ${dayData.precip}mm expected - Trail flooding possible`
+      });
+    }
+    
+    // Dangerous weather codes
+    if (EXTREME_WEATHER_THRESHOLDS.weatherCodes.dangerous.includes(dayData.weatherCode)) {
+      const condition = getWeatherDescription(dayData.weatherCode);
+      alerts.push({
+        type: 'DANGEROUS_CONDITIONS',
+        severity: 'CRITICAL',
+        day: dayName,
+        relativeDay,
+        message: `⚠️ DANGEROUS CONDITIONS ${relativeDay}: ${condition} - Hiking PROHIBITED`
+      });
+    } else if (EXTREME_WEATHER_THRESHOLDS.weatherCodes.severe.includes(dayData.weatherCode)) {
+      const condition = getWeatherDescription(dayData.weatherCode);
+      alerts.push({
+        type: 'SEVERE_CONDITIONS',
+        severity: 'HIGH',
+        day: dayName,
+        relativeDay,
+        message: `⚠️ SEVERE CONDITIONS ${relativeDay}: ${condition} - Extreme caution required`
+      });
+    }
+  }
+  
+  // Check for multi-day extreme patterns
+  if (daily.time.length >= 3) {
+    let consecutiveHot = 0;
+    let consecutiveCold = 0;
+    
+    for (let i = 0; i < Math.min(7, daily.time.length); i++) {
+      if (daily.temperature_2m_max[i] >= EXTREME_WEATHER_THRESHOLDS.temperature.heatWave) {
+        consecutiveHot++;
+      } else {
+        consecutiveHot = 0;
+      }
+      
+      if (daily.temperature_2m_max[i] <= EXTREME_WEATHER_THRESHOLDS.temperature.coldWave) {
+        consecutiveCold++;
+      } else {
+        consecutiveCold = 0;
+      }
+      
+      if (consecutiveHot >= 3) {
+        alerts.push({
+          type: 'HEAT_WAVE',
+          severity: 'HIGH',
+          message: `🔥 HEAT WAVE ALERT: ${consecutiveHot} consecutive days above ${EXTREME_WEATHER_THRESHOLDS.temperature.heatWave}°C`
+        });
+        break;
+      }
+      
+      if (consecutiveCold >= 3) {
+        alerts.push({
+          type: 'COLD_WAVE',
+          severity: 'HIGH',
+          message: `🥶 COLD WAVE ALERT: ${consecutiveCold} consecutive days below ${EXTREME_WEATHER_THRESHOLDS.temperature.coldWave}°C`
+        });
+        break;
+      }
+    }
+  }
+  
+  return alerts;
+}
+
+// Send extreme weather alert
+async function sendExtremeWeatherAlert(user, location, geo, alerts) {
+  if (alerts.length === 0) return;
+  
+  // Sort alerts by severity (CRITICAL first)
+  alerts.sort((a, b) => {
+    const severityOrder = { 'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3 };
+    return severityOrder[a.severity] - severityOrder[b.severity];
+  });
+  
+  let message = `🚨 **EXTREME WEATHER ALERT** 🚨\n`;
+  message += `📍 **Location**: ${geo.name}, ${geo.country}\n`;
+  message += `⏰ **Alert Time**: ${new Date().toLocaleString('en-US', { timeZone: user.timezone || 'UTC' })}\n\n`;
+  
+  // Group alerts by severity
+  const criticalAlerts = alerts.filter(a => a.severity === 'CRITICAL');
+  const highAlerts = alerts.filter(a => a.severity === 'HIGH');
+  
+  if (criticalAlerts.length > 0) {
+    message += `🔴 **CRITICAL ALERTS**:\n`;
+    criticalAlerts.forEach(alert => {
+      message += `• ${alert.message}\n`;
+    });
+    message += `\n`;
+  }
+  
+  if (highAlerts.length > 0) {
+    message += `🟡 **HIGH PRIORITY ALERTS**:\n`;
+    highAlerts.forEach(alert => {
+      message += `• ${alert.message}\n`;
+    });
+    message += `\n`;
+  }
+  
+  // Add AI analysis for extreme weather
+  const firstAlert = alerts[0];
+  const geminiAnalysis = await analyzeExtremeWeatherWithGemini(alerts, location);
+  
+  if (geminiAnalysis) {
+    message += `🤖 **AI Safety Analysis**:\n${geminiAnalysis}\n\n`;
+  }
+  
+  message += `⚠️ **SAFETY RECOMMENDATIONS**:\n`;
+  message += `• Cancel all outdoor activities\n`;
+  message += `• Stay indoors and monitor weather updates\n`;
+  message += `• Prepare emergency supplies\n`;
+  message += `• Avoid travel unless absolutely necessary\n\n`;
+  
+  message += `📱 Stay safe and check weather updates regularly!`;
+  
+  const subject = `🚨 EXTREME WEATHER ALERT - ${geo.name} - ${criticalAlerts.length > 0 ? 'CRITICAL' : 'HIGH'} PRIORITY`;
+  
+  // Send to all available channels for critical alerts
+  const channels = criticalAlerts.length > 0 ? ['telegram', 'email'] : user.channels;
+  
+  if (channels.includes('telegram') && user.telegram_chat_id) {
+    await sendTelegram(user.telegram_chat_id, message);
+  }
+  if (channels.includes('email') && user.email) {
+    await sendEmail(user.email, subject, message);
+  }
+  
+  console.log(`🚨 Extreme weather alert sent to ${user.name} for ${location}`);
+}
+
+// AI analysis for extreme weather conditions
+async function analyzeExtremeWeatherWithGemini(alerts, location) {
+  if (!genAI) return null;
+  
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
+    const alertDescriptions = alerts.map(alert => `${alert.type}: ${alert.message}`).join('\n');
+    
+    const prompt = `
+Analyze the following extreme weather alerts for ${location} and provide urgent safety recommendations:
+
+EXTREME WEATHER ALERTS:
+${alertDescriptions}
+
+Please provide:
+1. Immediate safety actions to take RIGHT NOW
+2. Specific risks to human life and safety
+3. What outdoor activities must be avoided completely
+4. Emergency preparedness recommendations
+5. When conditions might be safe again
+
+Keep the response urgent, clear, and focused on life safety. This is an emergency weather situation.
+`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text();
+  } catch (error) {
+    console.error('Error analyzing extreme weather with Gemini:', error);
+    return null;
+  }
+}
+
+// Fetch extended weather data including current conditions
+async function getExtendedWeather(location) {
+  const geo = await geocodeLocation(location);
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${geo.lat}&longitude=${geo.lon}&current=temperature_2m,weathercode,windspeed_10m&hourly=temperature_2m,precipitation,weathercode,windspeed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode&forecast_days=7&timezone=auto`;
+  const response = await axios.get(url);
+  return { geo, weather: response.data };
+}
+
+// Check and send extreme weather alerts for all users
+async function checkExtremeWeatherForAllUsers() {
+  const users = loadUsers();
+  
+  for (const user of users) {
+    for (const location of user.locations) {
+      try {
+        const { geo, weather } = await getExtendedWeather(location);
+        const alerts = analyzeExtremeWeather(weather, location);
+        
+        if (alerts.length > 0) {
+          await sendExtremeWeatherAlert(user, location, geo, alerts);
+        }
+      } catch (error) {
+        console.error(`Error checking extreme weather for ${user.name} at ${location}:`, error);
+      }
+    }
+  }
+}
+
 // Schedule notifications for users
 function scheduleNotifications() {
   const users = loadUsers();
@@ -358,6 +648,17 @@ function scheduleNotifications() {
       console.log(`Scheduled notifications for ${user.name} with cron: ${user.schedule}`);
     }
   });
+}
+
+// Schedule extreme weather checks every 2 hours
+function scheduleExtremeWeatherChecks() {
+  cron.schedule('0 */2 * * *', () => {
+    console.log(`[${new Date().toISOString()}] Running extreme weather check`);
+    checkExtremeWeatherForAllUsers()
+      .then(() => console.log(`[${new Date().toISOString()}] Extreme weather check completed`))
+      .catch(err => console.error(`[${new Date().toISOString()}] Error in extreme weather check:`, err));
+  });
+  console.log('Scheduled extreme weather checks every 2 hours');
 }
 
 // Start Express server
@@ -430,9 +731,29 @@ app.post('/webhook', express.json(), (req, res) => {
   }
 });
 
+// Add new API endpoint for manual extreme weather check
+app.get('/check-extreme-weather', async (req, res) => {
+  try {
+    await checkExtremeWeatherForAllUsers();
+    res.json({ 
+      status: 'success', 
+      message: 'Extreme weather check completed',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'error', 
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 app.listen(PORT, async () => {
   console.log(`Server listening on port ${PORT}`);
   scheduleNotifications();
+  scheduleExtremeWeatherChecks(); // Add extreme weather monitoring
+  
   // Send notification to all users immediately at deployment
   try {
     const users = loadUsers();
@@ -440,6 +761,10 @@ app.listen(PORT, async () => {
       await notifyUser(user);
     }
     console.log('Deployment notification sent to all users.');
+    
+    // Check for extreme weather on startup
+    await checkExtremeWeatherForAllUsers();
+    console.log('Initial extreme weather check completed.');
   } catch (err) {
     console.error('Error sending deployment notification:', err);
   }

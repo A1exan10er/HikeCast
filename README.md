@@ -1,6 +1,6 @@
 # HikeCastBot 🏔️ - AI-Powered Hiking Weather Notifications
 
-A cloud-based notification bot that sends intelligent hiking weather updates via Telegram, Email, and (optionally) WhatsApp. Features AI-powered weather analysis using Google's Gemini AI to provide personalized hiking recommendations.
+A cloud-based notification bot that sends intelligent hiking weather updates via Telegram, Email, and (optionally) WhatsApp. Features AI-powered weather analysis using Google's Gemini AI to provide personalized hiking recommendations and **extreme weather alerts**.
 
 ## ✨ Features
 
@@ -8,6 +8,12 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
 - **Gemini AI Integration**: Advanced weather analysis with hiking-specific recommendations
 - **Smart Suggestions**: Hiking suitability ratings, gear recommendations, and safety warnings
 - **Alternative Activities**: Suggestions for indoor/outdoor alternatives when hiking isn't ideal
+
+### 🚨 Extreme Weather Alerts
+- **Automatic Monitoring**: Continuous monitoring for dangerous weather conditions
+- **Real-Time Alerts**: Immediate notifications for extreme weather events
+- **Safety Prioritized**: Critical alerts sent to all channels regardless of user preferences
+- **AI Safety Analysis**: Gemini AI provides emergency safety recommendations
 
 ### 📱 Multi-Channel Notifications
 - **Telegram**: Real-time notifications with Markdown formatting
@@ -23,8 +29,53 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
 ### 🌤️ Comprehensive Weather Data
 - **Open-Meteo API**: Reliable weather data without API key requirements
 - **7-Day Forecasts**: Support for up to 7 days ahead
-- **Detailed Metrics**: Temperature, precipitation, weather conditions
+- **Current Conditions**: Real-time weather monitoring
+- **Detailed Metrics**: Temperature, precipitation, wind, weather conditions
 - **Human-Readable**: Weather codes converted to descriptive text
+
+## 🚨 Extreme Weather Monitoring
+
+### Alert Triggers
+**CRITICAL SEVERITY:**
+- Temperature ≥ 35°C (Extreme Heat)
+- Temperature ≤ -10°C (Extreme Cold)
+- Precipitation ≥ 50mm/day (Extreme Rain)
+- Dangerous conditions: Thunderstorms, Heavy Rain/Snow, Violent Showers
+
+**HIGH SEVERITY:**
+- Temperature 30-34°C (Heat Warning)
+- Temperature -9 to 0°C (Cold Warning)
+- Precipitation 20-49mm/day (Heavy Rain)
+- Severe conditions: Moderate Rain/Snow, Dense Fog
+- Heat/Cold waves (3+ consecutive days)
+
+### Alert Features
+- **Automatic Detection**: Checks every 2 hours
+- **Immediate Notifications**: Critical alerts sent instantly
+- **Multi-Day Analysis**: Patterns and consecutive extreme days
+- **AI Safety Guidance**: Emergency preparedness recommendations
+- **Override User Preferences**: Critical alerts sent to all channels
+
+### Sample Extreme Weather Alert
+```
+🚨 EXTREME WEATHER ALERT 🚨
+📍 Location: Stuttgart, Germany
+⏰ Alert Time: Dec 15, 2024, 3:30 PM
+
+🔴 CRITICAL ALERTS:
+• 🌊 EXTREME RAIN WARNING Tomorrow: 65mm expected - Flash flood risk
+• ⚠️ DANGEROUS CONDITIONS Tomorrow: Thunderstorm with heavy hail - Hiking PROHIBITED
+
+🤖 AI Safety Analysis:
+IMMEDIATE ACTION REQUIRED: Seek indoor shelter immediately. 
+This thunderstorm poses serious risk of lightning strikes and flash flooding...
+
+⚠️ SAFETY RECOMMENDATIONS:
+• Cancel all outdoor activities
+• Stay indoors and monitor weather updates
+• Prepare emergency supplies
+• Avoid travel unless absolutely necessary
+```
 
 ## 🚀 Quick Start
 
@@ -132,7 +183,7 @@ WHATSAPP_VERIFY_TOKEN=your-verify-token
 
 ## 🤖 AI Features
 
-### Gemini Analysis Provides:
+### Regular Weather Analysis
 1. **Hiking Suitability Rating** (1-10 scale)
 2. **Gear Recommendations** (clothing, equipment)
 3. **Optimal Timing** (best hours for hiking)
@@ -200,6 +251,7 @@ Perfect hiking conditions! Clear skies and mild temperatures...
 - Emoji support
 - Error handling
 - Multi-day forecast support
+- **Extreme weather alerts**
 
 ### ✅ Email - Fully Functional  
 - Gmail SMTP integration
@@ -207,6 +259,7 @@ Perfect hiking conditions! Clear skies and mild temperatures...
 - Reliable delivery
 - Attachment support
 - Multi-day forecast support
+- **Extreme weather alerts**
 
 ### ⚠️ WhatsApp - Limited Functionality
 **Current Status:**
@@ -226,6 +279,7 @@ Perfect hiking conditions! Clear skies and mild temperatures...
 - **API Keys**: Stored as environment variables
 - **Webhook Security**: Token verification for WhatsApp
 - **Error Handling**: Graceful fallbacks for API failures
+- **Safety First**: Critical alerts override user preferences
 
 ## 🛠️ Development
 
@@ -244,11 +298,33 @@ async function analyzeWeatherWithGemini(weatherData, location) {
 
 ### Testing
 ```bash
-# Test notifications
+# Manual extreme weather check
+curl http://localhost:3000/check-extreme-weather
+
+# Test regular notifications
 curl http://localhost:3000/test-notify
 
 # Check health
 curl http://localhost:3000/health
+```
+
+### Customizing Alert Thresholds
+Modify the `EXTREME_WEATHER_THRESHOLDS` object in [index.js](index.js):
+
+```javascript
+const EXTREME_WEATHER_THRESHOLDS = {
+  temperature: {
+    extremeHot: 35,      // Adjust temperature thresholds
+    extremeCold: -10,
+    // ...
+  },
+  precipitation: {
+    heavy: 20,           // Adjust precipitation thresholds
+    extreme: 50,
+    // ...
+  }
+  // ...
+};
 ```
 
 ## 🤝 Contributing
