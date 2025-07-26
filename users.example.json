@@ -5,6 +5,9 @@
     "channels": ["telegram", "email"],
     "telegram_chat_id": "123456789",
     "email": "sampleuser@example.com",
-    "whatsapp": "+10000000000"
+    "whatsapp": "+10000000000",
+    "schedule": "0 7 * * 6",
+    "timezone": "America/New_York",
+    "forecastDays": ["Saturday", "Sunday"]
   }
-] 
+]

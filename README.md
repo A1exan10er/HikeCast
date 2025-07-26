@@ -18,10 +18,11 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
 - **Per-User Scheduling**: Customizable cron-based notification times
 - **Timezone Support**: Notifications sent in user's local timezone
 - **Multi-Location**: Monitor weather for multiple hiking destinations
+- **Multi-Day Forecasts**: Get forecasts for specific days of the week
 
 ### 🌤️ Comprehensive Weather Data
 - **Open-Meteo API**: Reliable weather data without API key requirements
-- **2-Day Forecasts**: Today and tomorrow's weather conditions
+- **7-Day Forecasts**: Support for up to 7 days ahead
 - **Detailed Metrics**: Temperature, precipitation, weather conditions
 - **Human-Readable**: Weather codes converted to descriptive text
 
@@ -78,6 +79,8 @@ WHATSAPP_VERIFY_TOKEN=your-verify-token
 ```
 
 ### User Configuration (users.json)
+
+#### Multi-Day Forecast (Recommended)
 ```json
 [
   {
@@ -88,10 +91,38 @@ WHATSAPP_VERIFY_TOKEN=your-verify-token
     "email": "your-email@example.com",
     "whatsapp": "+1234567890",
     "schedule": "0 7,18 * * *",
-    "timezone": "Europe/Berlin"
+    "timezone": "Europe/Berlin",
+    "forecastDays": ["Friday", "Saturday", "Sunday"]
   }
 ]
 ```
+
+#### Single Day Forecast (Legacy Support)
+```json
+[
+  {
+    "name": "Your Name",
+    "locations": ["Stuttgart, Germany"],
+    "channels": ["telegram", "email"],
+    "telegram_chat_id": "123456789",
+    "email": "your-email@example.com",
+    "schedule": "0 7 * * *",
+    "timezone": "Europe/Berlin",
+    "forecastDay": 1
+  }
+]
+```
+
+#### Forecast Day Options
+- **forecastDays**: Array of day names for multi-day forecasts
+  - Valid values: `["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]`
+  - Example: `["Friday", "Saturday", "Sunday"]` for weekend hiking
+  - Example: `["Saturday"]` for Saturday-only forecasts
+
+- **forecastDay**: Single day index (legacy format)
+  - `0` = Today
+  - `1` = Tomorrow
+  - `2` = Day after tomorrow, etc.
 
 #### Schedule Format (Cron)
 - `0 7 * * *` - Daily at 7:00 AM
@@ -108,21 +139,29 @@ WHATSAPP_VERIFY_TOKEN=your-verify-token
 4. **Safety Warnings** (weather-related risks)
 5. **Alternative Activities** (when hiking isn't recommended)
 
-### Sample AI Output:
+### Sample Multi-Day Output:
 ```
-🤖 AI Hiking Analysis:
-**Hiking Suitability: 8/10**
+🏔️ Hiking Weather for Stuttgart, Germany
 
-**Gear Recommendations:**
-- Lightweight rain jacket (light drizzle expected)
-- Layered clothing for temperature changes
-- Non-slip hiking boots for wet conditions
+📅 Friday, Dec 15, 2024 (Tomorrow):
+🌡️ Temperature: 8°C / 2°C
+🌧️ Precipitation: 0.2mm
+☁️ Conditions: Partly cloudy
 
-**Best Time:** Morning hours (8-11 AM) before precipitation increases
+🤖 AI Analysis for Friday:
+Hiking Suitability: 8/10
+Great conditions for hiking with cool temperatures...
 
-**Safety Notes:** Trail surfaces may be slippery due to morning drizzle
+────────────────────────────────────────
 
-**Alternatives:** Indoor climbing gym if conditions worsen
+📅 Saturday, Dec 16, 2024 (Day +2):
+🌡️ Temperature: 12°C / 4°C
+🌧️ Precipitation: 0mm
+☁️ Conditions: Clear sky
+
+🤖 AI Analysis for Saturday:
+Hiking Suitability: 10/10
+Perfect hiking conditions! Clear skies and mild temperatures...
 ```
 
 ## 🌐 Deployment
@@ -160,12 +199,14 @@ WHATSAPP_VERIFY_TOKEN=your-verify-token
 - Markdown formatting
 - Emoji support
 - Error handling
+- Multi-day forecast support
 
 ### ✅ Email - Fully Functional  
 - Gmail SMTP integration
 - HTML formatting
 - Reliable delivery
 - Attachment support
+- Multi-day forecast support
 
 ### ⚠️ WhatsApp - Limited Functionality
 **Current Status:**

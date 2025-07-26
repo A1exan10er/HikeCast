@@ -163,7 +163,7 @@ Analyze the following weather data for hiking in ${location} and provide specifi
 
 Weather Details:
 - Location: ${location}
-- Date: ${weatherData.date}
+- Forecast: ${weatherData.dayLabel} (${weatherData.date})
 - Temperature: Max ${weatherData.tempMax}°C, Min ${weatherData.tempMin}°C
 - Precipitation: ${weatherData.precip}mm
 - Weather Condition: ${weatherDescription}
@@ -176,6 +176,7 @@ Please provide:
 5. Alternative outdoor activities if hiking isn't recommended
 
 Keep the response concise but informative, suitable for a weather notification message.
+Note: This forecast is for ${weatherData.dayLabel.toLowerCase()}.
 `;
 
     console.log('Sending request to Gemini...');
@@ -198,43 +199,141 @@ Keep the response concise but informative, suitable for a weather notification m
   }
 }
 
+// Helper function to get day name from date
+function getDayName(dateString) {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { weekday: 'long' });
+}
+
+// Helper function to get formatted date
+function getFormattedDate(dateString) {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric',
+    year: 'numeric'
+  });
+}
+
+// Helper function to get relative day label
+function getRelativeDayLabel(dayIdx) {
+  switch(dayIdx) {
+    case 0:
+      return "Today";
+    case 1:
+      return "Tomorrow";
+    default:
+      return `Day +${dayIdx}`;
+  }
+}
+
+// Get weather forecast for multiple days based on user preferences
+function getRequestedForecastDays(weather, user) {
+  const forecastDays = [];
+  
+  // If user has forecastDays array (new format)
+  if (user.forecastDays && Array.isArray(user.forecastDays)) {
+    // Get up to 7 days of forecast for checking
+    const maxDays = Math.min(7, weather.daily.time.length);
+    
+    for (let dayIdx = 0; dayIdx < maxDays; dayIdx++) {
+      const date = weather.daily.time[dayIdx];
+      const dayName = getDayName(date);
+      
+      // Check if this day is in user's requested days
+      if (user.forecastDays.includes(dayName)) {
+        forecastDays.push({
+          dayIdx,
+          date,
+          dayName,
+          relativeLabel: getRelativeDayLabel(dayIdx),
+          tempMax: weather.daily.temperature_2m_max[dayIdx],
+          tempMin: weather.daily.temperature_2m_min[dayIdx],
+          precip: weather.daily.precipitation_sum[dayIdx],
+          weatherCode: weather.daily.weathercode[dayIdx]
+        });
+      }
+    }
+  } 
+  // Fallback to old format (single day)
+  else {
+    const dayIdx = user.forecastDay !== undefined ? user.forecastDay : 1;
+    const validDayIdx = Math.max(0, Math.min(dayIdx, weather.daily.time.length - 1));
+    const date = weather.daily.time[validDayIdx];
+    
+    forecastDays.push({
+      dayIdx: validDayIdx,
+      date,
+      dayName: getDayName(date),
+      relativeLabel: getRelativeDayLabel(validDayIdx),
+      tempMax: weather.daily.temperature_2m_max[validDayIdx],
+      tempMin: weather.daily.temperature_2m_min[validDayIdx],
+      precip: weather.daily.precipitation_sum[validDayIdx],
+      weatherCode: weather.daily.weathercode[validDayIdx]
+    });
+  }
+  
+  return forecastDays;
+}
+
 async function notifyUser(user) {
   for (const location of user.locations) {
     const { geo, weather } = await getWeather(location);
-    // Get tomorrow's forecast (index 1)
-    const dayIdx = 1; // 0 = today, 1 = tomorrow
-    const date = weather.daily.time[dayIdx];
-    const tempMax = weather.daily.temperature_2m_max[dayIdx];
-    const tempMin = weather.daily.temperature_2m_min[dayIdx];
-    const precip = weather.daily.precipitation_sum[dayIdx];
-    const weatherCode = weather.daily.weathercode[dayIdx];
     
-    // Basic weather message
-    let message = `🏔️ **Hiking Weather for ${geo.name}, ${geo.country}** on ${date}:\n\n`;
-    message += `🌡️ **Temperature**: ${tempMax}°C / ${tempMin}°C\n`;
-    message += `🌧️ **Precipitation**: ${precip}mm\n`;
-    message += `☁️ **Conditions**: ${getWeatherDescription(weatherCode)}\n\n`;
+    // Get requested forecast days
+    const forecastDays = getRequestedForecastDays(weather, user);
     
-    // Get Gemini analysis
-    const geminiAnalysis = await analyzeWeatherWithGemini({
-      date,
-      tempMax,
-      tempMin,
-      precip,
-      weatherCode
-    }, `${geo.name}, ${geo.country}`);
-    
-    if (geminiAnalysis) {
-      message += `🤖 **AI Hiking Analysis**:\n${geminiAnalysis}`;
-    } else {
-      message += `📊 **Basic Assessment**: Check weather conditions before heading out!`;
+    if (forecastDays.length === 0) {
+      console.warn(`No matching forecast days found for ${user.name}`);
+      continue;
     }
     
+    // Create message header
+    let message = `🏔️ **Hiking Weather for ${geo.name}, ${geo.country}**\n\n`;
+    
+    // Process each requested day
+    for (let i = 0; i < forecastDays.length; i++) {
+      const dayData = forecastDays[i];
+      const isLastDay = i === forecastDays.length - 1;
+      
+      // Add day header with both day name and relative position
+      message += `📅 **${dayData.dayName}, ${getFormattedDate(dayData.date)}** (${dayData.relativeLabel}):\n`;
+      message += `🌡️ **Temperature**: ${dayData.tempMax}°C / ${dayData.tempMin}°C\n`;
+      message += `🌧️ **Precipitation**: ${dayData.precip}mm\n`;
+      message += `☁️ **Conditions**: ${getWeatherDescription(dayData.weatherCode)}\n\n`;
+      
+      // Get Gemini analysis for this day
+      const geminiAnalysis = await analyzeWeatherWithGemini({
+        date: dayData.date,
+        tempMax: dayData.tempMax,
+        tempMin: dayData.tempMin,
+        precip: dayData.precip,
+        weatherCode: dayData.weatherCode,
+        dayLabel: `${dayData.dayName} (${dayData.relativeLabel})`
+      }, `${geo.name}, ${geo.country}`);
+      
+      if (geminiAnalysis) {
+        message += `🤖 **AI Analysis for ${dayData.dayName}**:\n${geminiAnalysis}`;
+      } else {
+        message += `📊 **Basic Assessment**: Check weather conditions before heading out!`;
+      }
+      
+      // Add separator between days (except for the last day)
+      if (!isLastDay) {
+        message += `\n\n${'─'.repeat(40)}\n\n`;
+      }
+    }
+    
+    // Create subject line that includes all days
+    const dayNames = forecastDays.map(d => d.dayName).join(', ');
+    const subject = `🏔️ ${dayNames} Hiking Weather & AI Analysis for ${geo.name}`;
+    
+    // Send notifications
     if (user.channels.includes('telegram') && user.telegram_chat_id) {
       await sendTelegram(user.telegram_chat_id, message);
     }
     if (user.channels.includes('email') && user.email) {
-      await sendEmail(user.email, `🏔️ Hiking Weather & AI Analysis for ${geo.name}`, message);
+      await sendEmail(user.email, subject, message);
     }
     // TODO: WhatsApp functionality - temporarily commented out due to Meta API limitations
     // if (user.channels.includes('whatsapp') && user.whatsapp) {
@@ -243,6 +342,7 @@ async function notifyUser(user) {
   }
 }
 
+// Schedule notifications for users
 function scheduleNotifications() {
   const users = loadUsers();
   users.forEach(user => {
