@@ -147,6 +147,7 @@ See `users.example.json` for the required structure:
 4. **Production App Review** (for messaging any number)
 
 ## Extending
+- Analyze weather data using Gemini API, give recommendations, or send alerts.
 - Add WhatsApp support by integrating with the WhatsApp Cloud API.
 - Move user data to a database for dynamic management.
 - Add a web UI for user management.

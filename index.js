@@ -5,9 +5,11 @@ const express = require('express');
 const cron = require('node-cron');
 require('dotenv').config();
 const nodemailer = require('nodemailer');
+const { GoogleGenAI } = require('@google/genai');
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 const gmailUser = process.env.GMAIL_USER;
 const gmailPass = process.env.GMAIL_PASS;
@@ -15,6 +17,9 @@ const gmailPass = process.env.GMAIL_PASS;
 // WhatsApp Business API configuration
 const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+// Initialize Gemini AI with the new API
+const genAI = GEMINI_API_KEY ? new GoogleGenAI({ apiKey: GEMINI_API_KEY }) : null;
 
 // Load user preferences from JSON
 function loadUsers() {
@@ -114,6 +119,85 @@ async function sendWhatsApp(phone, message) {
   }
 }
 
+// Map weather codes to human-readable descriptions
+function getWeatherDescription(weatherCode) {
+  const codes = {
+    0: 'Clear sky',
+    1: 'Mainly clear',
+    2: 'Partly cloudy',
+    3: 'Overcast',
+    45: 'Fog',
+    48: 'Depositing rime fog',
+    51: 'Light drizzle',
+    53: 'Moderate drizzle',
+    55: 'Dense drizzle',
+    61: 'Slight rain',
+    63: 'Moderate rain',
+    65: 'Heavy rain',
+    71: 'Slight snow fall',
+    73: 'Moderate snow fall',
+    75: 'Heavy snow fall',
+    80: 'Slight rain showers',
+    81: 'Moderate rain showers',
+    82: 'Violent rain showers',
+    95: 'Thunderstorm',
+    96: 'Thunderstorm with slight hail',
+    99: 'Thunderstorm with heavy hail'
+  };
+  return codes[weatherCode] || `Weather code ${weatherCode}`;
+}
+
+// Analyze weather with Gemini AI and provide hiking suggestions
+async function analyzeWeatherWithGemini(weatherData, location) {
+  if (!genAI) {
+    console.warn('Gemini API key not set, skipping AI analysis.');
+    return null;
+  }
+
+  try {
+    console.log('Starting Gemini analysis for', location);
+    const weatherDescription = getWeatherDescription(weatherData.weatherCode);
+    
+    const prompt = `
+Analyze the following weather data for hiking in ${location} and provide specific recommendations:
+
+Weather Details:
+- Location: ${location}
+- Date: ${weatherData.date}
+- Temperature: Max ${weatherData.tempMax}°C, Min ${weatherData.tempMin}°C
+- Precipitation: ${weatherData.precip}mm
+- Weather Condition: ${weatherDescription}
+
+Please provide:
+1. A hiking suitability rating (1-10, where 10 is perfect for hiking)
+2. Specific recommendations for hiking gear and preparation
+3. Best time of day for hiking (if suitable)
+4. Any safety concerns or warnings
+5. Alternative outdoor activities if hiking isn't recommended
+
+Keep the response concise but informative, suitable for a weather notification message.
+`;
+
+    console.log('Sending request to Gemini...');
+    const response = await genAI.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        thinkingConfig: {
+          thinkingBudget: 0, // Disables thinking for faster response
+        },
+      }
+    });
+
+    console.log('Gemini response received successfully');
+    return response.text;
+  } catch (error) {
+    console.error('Error analyzing weather with Gemini:', error);
+    console.error('Error details:', error.message);
+    return null;
+  }
+}
+
 async function notifyUser(user) {
   for (const location of user.locations) {
     const { geo, weather } = await getWeather(location);
@@ -124,12 +208,33 @@ async function notifyUser(user) {
     const tempMin = weather.daily.temperature_2m_min[dayIdx];
     const precip = weather.daily.precipitation_sum[dayIdx];
     const weatherCode = weather.daily.weathercode[dayIdx];
-    const message = `Weather for *${geo.name}, ${geo.country}* on ${date}:\n- Max: ${tempMax}°C, Min: ${tempMin}°C\n- Precipitation: ${precip}mm\n- Weather code: ${weatherCode}`;
+    
+    // Basic weather message
+    let message = `🏔️ **Hiking Weather for ${geo.name}, ${geo.country}** on ${date}:\n\n`;
+    message += `🌡️ **Temperature**: ${tempMax}°C / ${tempMin}°C\n`;
+    message += `🌧️ **Precipitation**: ${precip}mm\n`;
+    message += `☁️ **Conditions**: ${getWeatherDescription(weatherCode)}\n\n`;
+    
+    // Get Gemini analysis
+    const geminiAnalysis = await analyzeWeatherWithGemini({
+      date,
+      tempMax,
+      tempMin,
+      precip,
+      weatherCode
+    }, `${geo.name}, ${geo.country}`);
+    
+    if (geminiAnalysis) {
+      message += `🤖 **AI Hiking Analysis**:\n${geminiAnalysis}`;
+    } else {
+      message += `📊 **Basic Assessment**: Check weather conditions before heading out!`;
+    }
+    
     if (user.channels.includes('telegram') && user.telegram_chat_id) {
       await sendTelegram(user.telegram_chat_id, message);
     }
     if (user.channels.includes('email') && user.email) {
-      await sendEmail(user.email, `Hiking Weather for ${geo.name}`, message);
+      await sendEmail(user.email, `🏔️ Hiking Weather & AI Analysis for ${geo.name}`, message);
     }
     // TODO: WhatsApp functionality - temporarily commented out due to Meta API limitations
     // if (user.channels.includes('whatsapp') && user.whatsapp) {
