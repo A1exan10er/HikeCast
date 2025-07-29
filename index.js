@@ -6,6 +6,7 @@ const cron = require('node-cron');
 require('dotenv').config();
 const nodemailer = require('nodemailer');
 const { GoogleGenAI } = require('@google/genai');
+const UserDatabase = require('./database'); // Add this line
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
@@ -21,19 +22,52 @@ const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 // Initialize Gemini AI with the new API
 const genAI = GEMINI_API_KEY ? new GoogleGenAI({}) : null;
 
-// Load user preferences from JSON
-function loadUsers() {
+// Initialize database
+const db = new UserDatabase();
+
+// Updated function to load users from database instead of JSON
+async function loadUsers() {
   try {
-    if (!fs.existsSync('users.json')) {
-      console.warn('users.json file not found');
-      return [];
-    }
-    const data = fs.readFileSync('users.json', 'utf8');
-    return JSON.parse(data);
+    return await db.getAllUsers();
   } catch (error) {
-    console.error('Error loading users.json:', error);
+    console.error('Error loading users from database:', error);
     return [];
   }
+}
+
+// User management functions for API endpoints
+function validateUserData(userData) {
+  const errors = [];
+  
+  if (!userData.name || userData.name.trim() === '') {
+    errors.push('Name is required');
+  }
+  
+  if (!userData.locations || !Array.isArray(userData.locations) || userData.locations.length === 0) {
+    errors.push('At least one location is required');
+  }
+  
+  if (!userData.channels || !Array.isArray(userData.channels) || userData.channels.length === 0) {
+    errors.push('At least one notification channel is required');
+  }
+  
+  if (userData.channels.includes('telegram') && !userData.telegram_chat_id) {
+    errors.push('Telegram chat ID is required when telegram channel is selected');
+  }
+  
+  if (userData.channels.includes('email') && !userData.email) {
+    errors.push('Email is required when email channel is selected');
+  }
+  
+  if (userData.channels.includes('whatsapp') && !userData.whatsapp) {
+    errors.push('WhatsApp number is required when whatsapp channel is selected');
+  }
+  
+  if (userData.schedule && !cron.validate(userData.schedule)) {
+    errors.push('Invalid cron schedule format');
+  }
+  
+  return errors;
 }
 
 // Geocode location to lat/lon using Open-Meteo's geocoding API
@@ -805,40 +839,61 @@ async function getExtendedWeather(location) {
 
 // Check and send extreme weather alerts for all users
 async function checkExtremeWeatherForAllUsers() {
-  const users = loadUsers();
-  
-  for (const user of users) {
-    for (const location of user.locations) {
-      try {
-        const { geo, weather } = await getExtendedWeather(location);
-        const alerts = analyzeExtremeWeather(weather, location);
-        
-        if (alerts.length > 0) {
-          await sendExtremeWeatherAlert(user, location, geo, alerts);
+  try {
+    console.log('🔍 Starting extreme weather check for all users...');
+    const users = await loadUsers(); // Fixed: Added await
+    console.log(`Checking extreme weather for ${users.length} users`);
+    
+    if (users.length === 0) {
+      console.log('No users found for extreme weather check');
+      return;
+    }
+    
+    for (const user of users) {
+      for (const location of user.locations) {
+        try {
+          console.log(`Checking extreme weather for ${user.name} at ${location}`);
+          const { geo, weather } = await getExtendedWeather(location);
+          const alerts = analyzeExtremeWeather(weather, location);
+          
+          if (alerts.length > 0) {
+            console.log(`⚠️ Found ${alerts.length} extreme weather alerts for ${user.name} at ${location}`);
+            await sendExtremeWeatherAlert(user, location, geo, alerts);
+          } else {
+            console.log(`✅ No extreme weather alerts for ${user.name} at ${location}`);
+          }
+        } catch (error) {
+          console.error(`❌ Error checking extreme weather for ${user.name} at ${location}:`, error.message);
         }
-      } catch (error) {
-        console.error(`Error checking extreme weather for ${user.name} at ${location}:`, error);
       }
     }
+    console.log('✅ Extreme weather check completed for all users');
+  } catch (error) {
+    console.error('❌ Error in checkExtremeWeatherForAllUsers:', error.message);
+    throw error;
   }
 }
 
 // Schedule notifications for users
-function scheduleNotifications() {
-  const users = loadUsers();
-  users.forEach(user => {
-    if (user.schedule) {
-      cron.schedule(user.schedule, () => {
-        console.log(`[${new Date().toISOString()}] Running scheduled notification for ${user.name}`);
-        notifyUser(user)
-          .then(() => console.log(`[${new Date().toISOString()}] Notification sent to ${user.name}`))
-          .catch(err => console.error(`[${new Date().toISOString()}] Error notifying ${user.name}:`, err));
-      }, {
-        timezone: user.timezone || 'Etc/UTC' // Default to UTC if not specified
-      });
-      console.log(`Scheduled notifications for ${user.name} with cron: ${user.schedule}`);
-    }
-  });
+async function scheduleNotifications() {
+  try {
+    const users = await loadUsers();
+    users.forEach(user => {
+      if (user.schedule) {
+        cron.schedule(user.schedule, () => {
+          console.log(`[${new Date().toISOString()}] Running scheduled notification for ${user.name}`);
+          notifyUser(user)
+            .then(() => console.log(`[${new Date().toISOString()}] Notification sent to ${user.name}`))
+            .catch(err => console.error(`[${new Date().toISOString()}] Error notifying ${user.name}:`, err));
+        }, {
+          timezone: user.timezone || 'Etc/UTC'
+        });
+        console.log(`Scheduled notifications for ${user.name} with cron: ${user.schedule}`);
+      }
+    });
+  } catch (error) {
+    console.error('Error scheduling notifications:', error);
+  }
 }
 
 // Schedule extreme weather checks every 2 hours
@@ -856,6 +911,10 @@ function scheduleExtremeWeatherChecks() {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Add JSON parsing middleware
+app.use(express.json());
+
+// Existing endpoints
 app.get('/', (req, res) => {
   res.send('HikeCastBot is running and scheduling notifications!');
 });
@@ -864,12 +923,310 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
+// Update test-notify to use database
 app.get('/test-notify', async (req, res) => {
-  const users = loadUsers();
-  for (const user of users) {
-    await notifyUser(user);
+  try {
+    const users = await loadUsers();
+    for (const user of users) {
+      await notifyUser(user);
+    }
+    res.send('Test notifications sent (check your email and Telegram)!');
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
   }
-  res.send('Test notifications sent (check your email and Telegram)!');
+});
+
+// NEW USER MANAGEMENT API ENDPOINTS
+
+// Get all users
+app.get('/users', async (req, res) => {
+  try {
+    const users = await db.getAllUsers();
+    // Remove sensitive information for API response
+    const sanitizedUsers = users.map(user => ({
+      id: user.id,
+      name: user.name,
+      locations: user.locations,
+      channels: user.channels,
+      schedule: user.schedule,
+      timezone: user.timezone,
+      forecastDays: user.forecastDays,
+      hasValidTelegramId: !!user.telegram_chat_id,
+      hasValidEmail: !!user.email,
+      hasValidWhatsApp: !!user.whatsapp,
+      created_at: user.created_at,
+      updated_at: user.updated_at
+    }));
+    
+    res.json({
+      status: 'success',
+      users: sanitizedUsers,
+      count: users.length
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+});
+
+// Get specific user
+app.get('/users/:identifier', async (req, res) => {
+  try {
+    const user = await db.getUserByIdentifier(req.params.identifier);
+    
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found'
+      });
+    }
+    
+    // Remove sensitive information
+    const sanitizedUser = {
+      id: user.id,
+      name: user.name,
+      locations: user.locations,
+      channels: user.channels,
+      schedule: user.schedule,
+      timezone: user.timezone,
+      forecastDays: user.forecastDays,
+      hasValidTelegramId: !!user.telegram_chat_id,
+      hasValidEmail: !!user.email,
+      hasValidWhatsApp: !!user.whatsapp,
+      created_at: user.created_at,
+      updated_at: user.updated_at
+    };
+    
+    res.json({
+      status: 'success',
+      user: sanitizedUser
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+});
+
+// Add new user
+app.post('/users', async (req, res) => {
+  try {
+    const newUserData = req.body;
+    
+    // Validate user data
+    const validationErrors = validateUserData(newUserData);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Validation failed',
+        errors: validationErrors
+      });
+    }
+    
+    // Check if user already exists
+    const existingUser = await db.getUserByIdentifier(newUserData.name);
+    if (existingUser) {
+      return res.status(409).json({
+        status: 'error',
+        message: 'User with this name already exists'
+      });
+    }
+    
+    // Set defaults
+    const userData = {
+      name: newUserData.name.trim(),
+      locations: newUserData.locations,
+      channels: newUserData.channels,
+      telegram_chat_id: newUserData.telegram_chat_id || null,
+      email: newUserData.email || null,
+      whatsapp: newUserData.whatsapp || null,
+      schedule: newUserData.schedule || "0 7 * * *",
+      timezone: newUserData.timezone || "UTC",
+      forecastDays: newUserData.forecastDays || ["Saturday", "Sunday"]
+    };
+    
+    const newUser = await db.addUser(userData);
+    
+    // Reschedule notifications to include new user
+    await scheduleNotifications();
+    
+    res.status(201).json({
+      status: 'success',
+      message: 'User created successfully',
+      user: {
+        id: newUser.id,
+        name: newUser.name,
+        locations: newUser.locations,
+        channels: newUser.channels,
+        schedule: newUser.schedule,
+        timezone: newUser.timezone,
+        forecastDays: newUser.forecastDays
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+});
+
+// Update user
+app.put('/users/:identifier', async (req, res) => {
+  try {
+    const updatedData = req.body;
+    
+    // Get current user first
+    const currentUser = await db.getUserByIdentifier(req.params.identifier);
+    if (!currentUser) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found'
+      });
+    }
+    
+    // Merge and validate updated data
+    const mergedData = { ...currentUser, ...updatedData };
+    const validationErrors = validateUserData(mergedData);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Validation failed',
+        errors: validationErrors
+      });
+    }
+    
+    const updatedUser = await db.updateUser(req.params.identifier, updatedData);
+    
+    // Reschedule notifications with updated user data
+    await scheduleNotifications();
+    
+    res.json({
+      status: 'success',
+      message: 'User updated successfully',
+      user: {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        locations: updatedUser.locations,
+        channels: updatedUser.channels,
+        schedule: updatedUser.schedule,
+        timezone: updatedUser.timezone,
+        forecastDays: updatedUser.forecastDays
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error updating user:', error);
+    if (error.message === 'User not found') {
+      res.status(404).json({
+        status: 'error',
+        message: error.message
+      });
+    } else {
+      res.status(500).json({
+        status: 'error',
+        message: error.message
+      });
+    }
+  }
+});
+
+// Delete user
+app.delete('/users/:identifier', async (req, res) => {
+  try {
+    const deletedUser = await db.deleteUser(req.params.identifier);
+    
+    // Reschedule notifications without deleted user
+    await scheduleNotifications();
+    
+    res.json({
+      status: 'success',
+      message: 'User deleted successfully',
+      deletedUser: {
+        name: deletedUser.name
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    if (error.message === 'User not found') {
+      res.status(404).json({
+        status: 'error',
+        message: error.message
+      });
+    } else {
+      res.status(500).json({
+        status: 'error',
+        message: error.message
+      });
+    }
+  }
+});
+
+// Test notification for specific user
+app.post('/users/:identifier/test', async (req, res) => {
+  try {
+    const user = await db.getUserByIdentifier(req.params.identifier);
+    
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found'
+      });
+    }
+    
+    // Send test notification
+    await notifyUser(user);
+    
+    res.json({
+      status: 'success',
+      message: `Test notification sent to ${user.name}`
+    });
+    
+  } catch (error) {
+    console.error('Error sending test notification:', error);
+    res.status(500).json({
+      status: 'error',
+      message: `Failed to send notification: ${error.message}`
+    });
+  }
+});
+
+// Database management endpoints
+app.get('/database/stats', async (req, res) => {
+  try {
+    const stats = await db.getStats();
+    res.json({
+      status: 'success',
+      stats
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+});
+
+app.post('/database/backup', async (req, res) => {
+  try {
+    const backupPath = await db.backup();
+    res.json({
+      status: 'success',
+      message: 'Database backed up successfully',
+      backupPath
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
 });
 
 // Add webhook verification endpoint for WhatsApp
@@ -941,9 +1298,12 @@ app.get('/check-extreme-weather', async (req, res) => {
 });
 
 // Debug endpoint to check environment and user data
-app.get('/debug', (req, res) => {
+app.get('/debug', async (req, res) => {
   try {
-    const users = loadUsers();
+    console.log('🔍 Starting debug endpoint...');
+    const users = await loadUsers(); // Add await here
+    console.log(`Debug: Loaded ${users.length} users`);
+    
     res.json({
       status: 'HikeCast Debug Info',
       timestamp: new Date().toISOString(),
@@ -955,19 +1315,31 @@ app.get('/debug', (req, res) => {
         WHATSAPP_ACCESS_TOKEN: process.env.WHATSAPP_ACCESS_TOKEN ? 'Set' : 'Not Set',
         WHATSAPP_PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID ? 'Set' : 'Not Set'
       },
-      files: {
-        usersJsonExists: fs.existsSync('users.json'),
+      database: {
+        initialized: db ? true : false,
         usersCount: users.length
       },
+      files: {
+        usersJsonExists: fs.existsSync('users.json'),
+        databaseExists: fs.existsSync('hikecast.db')
+      },
       users: users.map(user => ({
+        id: user.id,
         name: user.name,
         locations: user.locations,
         channels: user.channels,
         hasValidTelegramId: !!user.telegram_chat_id,
-        hasValidEmail: !!user.email
+        hasValidEmail: !!user.email,
+        hasValidWhatsApp: !!user.whatsapp,
+        schedule: user.schedule,
+        timezone: user.timezone,
+        forecastDays: user.forecastDays,
+        created_at: user.created_at,
+        updated_at: user.updated_at
       }))
     });
   } catch (error) {
+    console.error('❌ Debug endpoint error:', error.message);
     res.status(500).json({
       status: 'error',
       message: error.message,
@@ -976,19 +1348,29 @@ app.get('/debug', (req, res) => {
   }
 });
 
+// Update the app.listen section
 app.listen(PORT, async () => {
   console.log(`Server listening on port ${PORT}`);
-  scheduleNotifications();
-  scheduleExtremeWeatherChecks();
   
-  // Send notification to all users immediately at deployment
   try {
+    // Initialize database
+    console.log('Initializing database...');
+    await db.initialize();
+    
+    // Migrate from JSON if exists
+    await db.migrateFromJSON();
+    
+    // Schedule notifications and extreme weather checks
+    await scheduleNotifications();
+    scheduleExtremeWeatherChecks();
+    
+    // Send notification to all users immediately at deployment
     console.log('Starting deployment notifications...');
-    const users = loadUsers();
-    console.log(`Loaded ${users.length} users`);
+    const users = await loadUsers();
+    console.log(`Loaded ${users.length} users from database`);
     
     if (users.length === 0) {
-      console.warn('No users found in users.json');
+      console.warn('No users found in database');
       return;
     }
     
@@ -999,7 +1381,6 @@ app.listen(PORT, async () => {
         console.log(`✅ Notification sent to ${user.name}`);
       } catch (error) {
         console.error(`❌ Failed to notify ${user.name}:`, error.message);
-        // Continue with next user instead of stopping
       }
     }
     console.log('Deployment notifications completed.');
@@ -1015,6 +1396,29 @@ app.listen(PORT, async () => {
   }
 });
 
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('Shutting down gracefully...');
+  try {
+    await db.close();
+    process.exit(0);
+  } catch (error) {
+    console.error('Error during shutdown:', error);
+    process.exit(1);
+  }
+});
+
+process.on('SIGTERM', async () => {
+  console.log('Received SIGTERM, shutting down gracefully...');
+  try {
+    await db.close();
+    process.exit(0);
+  } catch (error) {
+    console.error('Error during shutdown:', error);
+    process.exit(1);
+  }
+});
+
 // Also add a simplified test endpoint that sends a short message:
 app.get('/test-simple', async (req, res) => {
   try {
@@ -1022,7 +1426,7 @@ app.get('/test-simple', async (req, res) => {
     
     // Test 1: Load users
     console.log('🔍 Test 1: Loading users...');
-    const users = loadUsers();
+    const users = await loadUsers(); // Add await here
     console.log(`✅ Loaded ${users.length} users`);
     
     if (users.length === 0) {
@@ -1080,12 +1484,12 @@ app.get('/test-simple', async (req, res) => {
   }
 });
 
-// Also create an even simpler test that avoids AI completely
+// Fix the test-telegram-only endpoint
 app.get('/test-telegram-only', async (req, res) => {
   try {
     console.log('🔍 Starting Telegram-only test...');
     
-    const users = loadUsers();
+    const users = await loadUsers(); // Add await here
     if (users.length === 0) {
       return res.json({ status: 'error', message: 'No users found' });
     }
@@ -1131,12 +1535,12 @@ Test completed at ${new Date().toLocaleTimeString()}`;
   }
 });
 
-// Add an ultra-simple test endpoint
+// Fix the test-ultra-simple endpoint
 app.get('/test-ultra-simple', async (req, res) => {
   try {
     console.log('🔍 Starting ultra-simple test...');
     
-    const users = loadUsers();
+    const users = await loadUsers(); // Add await here
     if (users.length === 0) {
       return res.json({ status: 'error', message: 'No users found' });
     }
@@ -1228,4 +1632,722 @@ Keep the response short and simple.
       timestamp: new Date().toISOString()
     });
   }
+});
+
+// Add this endpoint for a simple web interface
+app.get('/dashboard', (req, res) => {
+  const dashboardHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>HikeCast User Management Dashboard</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #f5f5f5; 
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            padding: 20px; 
+            border-radius: 10px; 
+            margin-bottom: 20px; 
+            text-align: center;
+        }
+        .stats { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+            margin-bottom: 20px; 
+        }
+        .stat-card { 
+            background: white; 
+            padding: 15px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+            text-align: center;
+        }
+        .stat-number { font-size: 2em; font-weight: bold; color: #667eea; }
+        .stat-label { color: #666; margin-top: 5px; }
+        
+        .actions { 
+            display: flex; 
+            gap: 10px; 
+            margin-bottom: 20px; 
+            flex-wrap: wrap;
+        }
+        .btn { 
+            padding: 10px 20px; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            font-weight: bold;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .btn-info { background: #17a2b8; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        
+        .user-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); 
+            gap: 20px; 
+        }
+        .user-card { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            border-left: 4px solid #667eea;
+        }
+        .user-header { 
+            font-size: 1.5em; 
+            font-weight: bold; 
+            color: #333; 
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-details { margin-bottom: 15px; }
+        .detail-row { 
+            display: flex; 
+            margin: 8px 0; 
+            align-items: center;
+        }
+        .detail-label { 
+            font-weight: bold; 
+            min-width: 120px; 
+            color: #555; 
+        }
+        .detail-value { flex: 1; }
+        .channels, .locations, .forecast-days { 
+            display: flex; 
+            gap: 5px; 
+            flex-wrap: wrap; 
+        }
+        .tag { 
+            padding: 3px 8px; 
+            border-radius: 12px; 
+            font-size: 0.85em; 
+            font-weight: bold;
+        }
+        .channel-telegram { background: #e3f2fd; color: #1976d2; }
+        .channel-email { background: #f3e5f5; color: #7b1fa2; }
+        .channel-whatsapp { background: #e8f5e8; color: #388e3c; }
+        .location-tag { background: #fff3e0; color: #f57c00; }
+        .day-tag { background: #e1f5fe; color: #0277bd; }
+        .status-indicator { 
+            width: 10px; 
+            height: 10px; 
+            border-radius: 50%; 
+            display: inline-block; 
+            margin-left: 5px;
+        }
+        .status-online { background: #4caf50; }
+        .status-offline { background: #f44336; }
+        
+        .modal { 
+            display: none; 
+            position: fixed; 
+            z-index: 1000; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            height: 100%; 
+            background-color: rgba(0,0,0,0.5); 
+        }
+        .modal-content { 
+            background-color: white; 
+            margin: 5% auto; 
+            padding: 20px; 
+            border-radius: 10px; 
+            width: 90%; 
+            max-width: 600px; 
+            max-height: 80vh; 
+            overflow-y: auto;
+        }
+        .modal-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 20px; 
+            padding-bottom: 10px; 
+            border-bottom: 2px solid #eee;
+        }
+        .close { 
+            color: #aaa; 
+            font-size: 28px; 
+            font-weight: bold; 
+            cursor: pointer; 
+        }
+        .close:hover { color: black; }
+        
+        .form-group { margin-bottom: 15px; }
+        .form-group label { 
+            display: block; 
+            margin-bottom: 5px; 
+            font-weight: bold; 
+            color: #333;
+        }
+        .form-group input, .form-group select, .form-group textarea { 
+            width: 100%; 
+            padding: 10px; 
+            border: 2px solid #ddd; 
+            border-radius: 5px; 
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .form-group input:focus, .form-group select:focus { 
+            border-color: #667eea; 
+            outline: none; 
+        }
+        .checkbox-group { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); 
+            gap: 10px; 
+        }
+        .checkbox-item { 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+        }
+        .checkbox-item input[type="checkbox"] { 
+            width: auto; 
+            margin: 0;
+        }
+        
+        .status { 
+            padding: 15px; 
+            margin: 15px 0; 
+            border-radius: 5px; 
+            display: none;
+        }
+        .status.success { 
+            background: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb; 
+        }
+        .status.error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb; 
+        }
+        .status.info { 
+            background: #d1ecf1; 
+            color: #0c5460; 
+            border: 1px solid #bee5eb; 
+        }
+        
+        .loading { 
+            text-align: center; 
+            padding: 40px; 
+            color: #666; 
+        }
+        .spinner { 
+            border: 4px solid #f3f3f3; 
+            border-top: 4px solid #667eea; 
+            border-radius: 50%; 
+            width: 40px; 
+            height: 40px; 
+            animation: spin 1s linear infinite; 
+            margin: 0 auto 20px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .form-help { 
+            font-size: 0.85em; 
+            color: #666; 
+            margin-top: 5px; 
+        }
+        .required { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏔️ HikeCast User Management Dashboard</h1>
+            <p>Manage hiking weather notification users and settings</p>
+        </div>
+        
+        <div class="stats" id="stats-container">
+            <div class="stat-card">
+                <div class="stat-number" id="total-users">-</div>
+                <div class="stat-label">Total Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="telegram-users">-</div>
+                <div class="stat-label">Telegram Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="email-users">-</div>
+                <div class="stat-label">Email Users</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="whatsapp-users">-</div>
+                <div class="stat-label">WhatsApp Users</div>
+            </div>
+        </div>
+        
+        <div class="actions">
+            <button class="btn btn-primary" onclick="openAddUserModal()">+ Add New User</button>
+            <button class="btn btn-success" onclick="testAllUsers()">Test All Users</button>
+            <button class="btn btn-warning" onclick="checkExtremeWeather()">Check Extreme Weather</button>
+            <button class="btn btn-info" onclick="backupDatabase()">Backup Database</button>
+            <button class="btn btn-secondary" onclick="refreshData()">🔄 Refresh</button>
+        </div>
+        
+        <div id="status" class="status"></div>
+        
+        <div class="user-grid" id="users-container">
+            <div class="loading">
+                <div class="spinner"></div>
+                Loading users...
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit User Modal -->
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Add New User</h2>
+                <span class="close" onclick="closeModal()">&times;</span>
+            </div>
+            <form id="userForm">
+                <div class="form-group">
+                    <label for="name">Name <span class="required">*</span></label>
+                    <input type="text" id="name" name="name" required>
+                    <div class="form-help">Unique identifier for the user</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="locations">Locations <span class="required">*</span></label>
+                    <textarea id="locations" name="locations" rows="3" placeholder="Stuttgart, Germany&#10;Munich, Germany&#10;Berlin, Germany" required></textarea>
+                    <div class="form-help">Enter one location per line (e.g., "Stuttgart, Germany")</div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Notification Channels <span class="required">*</span></label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="channel-telegram" name="channels" value="telegram">
+                            <label for="channel-telegram">📱 Telegram</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="channel-email" name="channels" value="email">
+                            <label for="channel-email">📧 Email</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="channel-whatsapp" name="channels" value="whatsapp">
+                            <label for="channel-whatsapp">📞 WhatsApp</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="telegram_chat_id">Telegram Chat ID</label>
+                    <input type="text" id="telegram_chat_id" name="telegram_chat_id" placeholder="-4696289808">
+                    <div class="form-help">Required if Telegram channel is selected. Get from @userinfobot</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" placeholder="user@example.com">
+                    <div class="form-help">Required if Email channel is selected</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="whatsapp">WhatsApp Number</label>
+                    <input type="text" id="whatsapp" name="whatsapp" placeholder="+4915225644687">
+                    <div class="form-help">Required if WhatsApp channel is selected. Include country code</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="schedule">Schedule (Cron Format)</label>
+                    <input type="text" id="schedule" name="schedule" value="0 7 * * *" placeholder="0 7 * * *">
+                    <div class="form-help">
+                        Examples: "0 7 * * *" (daily 7am), "0 7,18 * * *" (7am & 6pm), "0 8 * * 6,0" (weekends 8am)
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="timezone">Timezone</label>
+                    <select id="timezone" name="timezone">
+                        <option value="UTC">UTC</option>
+                        <option value="Europe/Berlin">Europe/Berlin</option>
+                        <option value="Europe/London">Europe/London</option>
+                        <option value="Europe/Paris">Europe/Paris</option>
+                        <option value="America/New_York">America/New_York</option>
+                        <option value="America/Los_Angeles">America/Los_Angeles</option>
+                        <option value="Asia/Tokyo">Asia/Tokyo</option>
+                        <option value="Asia/Shanghai">Asia/Shanghai</option>
+                        <option value="Australia/Sydney">Australia/Sydney</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Forecast Days</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="day-monday" name="forecastDays" value="Monday">
+                            <label for="day-monday">Monday</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="day-tuesday" name="forecastDays" value="Tuesday">
+                            <label for="day-tuesday">Tuesday</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="day-wednesday" name="forecastDays" value="Wednesday">
+                            <label for="day-wednesday">Wednesday</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="day-thursday" name="forecastDays" value="Thursday">
+                            <label for="day-thursday">Thursday</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="day-friday" name="forecastDays" value="Friday">
+                            <label for="day-friday">Friday</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="day-saturday" name="forecastDays" value="Saturday">
+                            <label for="day-saturday">Saturday</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="day-sunday" name="forecastDays" value="Sunday">
+                            <label for="day-sunday">Sunday</label>
+                        </div>
+                    </div>
+                    <div class="form-help">Select which days to receive weather forecasts</div>
+                </div>
+                
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="save-btn">Save User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentEditingUser = null;
+        let allUsers = [];
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            loadUsers();
+            loadStats();
+        });
+
+        function showStatus(message, type = 'success') {
+            const status = document.getElementById('status');
+            status.innerHTML = message;
+            status.className = 'status ' + type;
+            status.style.display = 'block';
+            setTimeout(() => status.style.display = 'none', 5000);
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch('/database/stats');
+                const data = await response.json();
+                if (data.status === 'success') {
+                    document.getElementById('total-users').textContent = data.stats.totalUsers;
+                    document.getElementById('telegram-users').textContent = data.stats.telegramUsers;
+                    document.getElementById('email-users').textContent = data.stats.emailUsers;
+                    document.getElementById('whatsapp-users').textContent = data.stats.whatsappUsers;
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        async function loadUsers() {
+            try {
+                const response = await fetch('/users');
+                const data = await response.json();
+                if (data.status === 'success') {
+                    allUsers = data.users;
+                    displayUsers(data.users);
+                } else {
+                    showStatus('Failed to load users: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showStatus('Error loading users: ' + error.message, 'error');
+            }
+        }
+
+        function displayUsers(users) {
+            const container = document.getElementById('users-container');
+            if (users.length === 0) {
+                container.innerHTML = '<div class="loading">No users found. Add your first user!</div>';
+                return;
+            }
+
+            container.innerHTML = users.map(user => \`
+                <div class="user-card">
+                    <div class="user-header">
+                        <span>\${user.name}</span>
+                        <div>
+                            <button class="btn btn-info" onclick="testUser('\${user.name}')" title="Test Notification">🧪</button>
+                            <button class="btn btn-success" onclick="editUser('\${user.name}')" title="Edit User">✏️</button>
+                            <button class="btn btn-danger" onclick="deleteUser('\${user.name}')" title="Delete User">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="user-details">
+                        <div class="detail-row">
+                            <span class="detail-label">📍 Locations:</span>
+                            <div class="detail-value">
+                                <div class="locations">
+                                    \${user.locations.map(loc => \`<span class="tag location-tag">\${loc}</span>\`).join('')}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">📱 Channels:</span>
+                            <div class="detail-value">
+                                <div class="channels">
+                                    \${user.channels.map(ch => \`<span class="tag channel-\${ch}">\${ch}</span>\`).join('')}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">⏰ Schedule:</span>
+                            <div class="detail-value">
+                                <code>\${user.schedule}</code> (\${user.timezone})
+                            </div>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">📅 Forecast Days:</span>
+                            <div class="detail-value">
+                                <div class="forecast-days">
+                                    \${(user.forecastDays || []).map(day => \`<span class="tag day-tag">\${day}</span>\`).join('')}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">🔗 Status:</span>
+                            <div class="detail-value">
+                                Telegram: \${user.hasValidTelegramId ? '✅' : '❌'}
+                                <span class="status-indicator \${user.hasValidTelegramId ? 'status-online' : 'status-offline'}"></span>
+                                | Email: \${user.hasValidEmail ? '✅' : '❌'}
+                                <span class="status-indicator \${user.hasValidEmail ? 'status-online' : 'status-offline'}"></span>
+                                | WhatsApp: \${user.hasValidWhatsApp ? '✅' : '❌'}
+                                <span class="status-indicator \${user.hasValidWhatsApp ? 'status-online' : 'status-offline'}"></span>
+                            </div>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">📊 Created:</span>
+                            <div class="detail-value">
+                                \${new Date(user.created_at).toLocaleDateString()} \${user.updated_at !== user.created_at ? '(Updated: ' + new Date(user.updated_at).toLocaleDateString() + ')' : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            \`).join('');
+        }
+
+        function openAddUserModal() {
+            currentEditingUser = null;
+            document.getElementById('modal-title').textContent = 'Add New User';
+            document.getElementById('save-btn').textContent = 'Add User';
+            resetForm();
+            document.getElementById('userModal').style.display = 'block';
+        }
+
+        async function editUser(userName) {
+            try {
+                const response = await fetch(\`/users/\${encodeURIComponent(userName)}\`);
+                const data = await response.json();
+                if (data.status === 'success') {
+                    currentEditingUser = data.user;
+                    document.getElementById('modal-title').textContent = 'Edit User: ' + userName;
+                    document.getElementById('save-btn').textContent = 'Update User';
+                    populateForm(data.user);
+                    document.getElementById('userModal').style.display = 'block';
+                } else {
+                    showStatus('Failed to load user data: ' + data.message, 'error');
+                }
+            } catch (error) {
+                showStatus('Error loading user: ' + error.message, 'error');
+            }
+        }
+
+        function populateForm(user) {
+            document.getElementById('name').value = user.name;
+            document.getElementById('locations').value = user.locations.join('\\n');
+            document.getElementById('telegram_chat_id').value = user.telegram_chat_id || '';
+            document.getElementById('email').value = user.email || '';
+            document.getElementById('whatsapp').value = user.whatsapp || '';
+            document.getElementById('schedule').value = user.schedule || '0 7 * * *';
+            document.getElementById('timezone').value = user.timezone || 'UTC';
+            
+            // Set channels
+            document.querySelectorAll('input[name="channels"]').forEach(checkbox => {
+                checkbox.checked = user.channels.includes(checkbox.value);
+            });
+            
+            // Set forecast days
+            document.querySelectorAll('input[name="forecastDays"]').forEach(checkbox => {
+                checkbox.checked = (user.forecastDays || []).includes(checkbox.value);
+            });
+        }
+
+        function resetForm() {
+            document.getElementById('userForm').reset();
+            document.getElementById('schedule').value = '0 7 * * *';
+            document.getElementById('timezone').value = 'UTC';
+            
+            // Set default forecast days (Saturday, Sunday)
+            document.getElementById('day-saturday').checked = true;
+            document.getElementById('day-sunday').checked = true;
+        }
+
+        function closeModal() {
+            document.getElementById('userModal').style.display = 'none';
+            currentEditingUser = null;
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('userModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        document.getElementById('userForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const userData = {
+                name: formData.get('name').trim(),
+                locations: formData.get('locations').split('\\n').map(l => l.trim()).filter(l => l),
+                channels: Array.from(formData.getAll('channels')),
+                telegram_chat_id: formData.get('telegram_chat_id').trim() || null,
+                email: formData.get('email').trim() || null,
+                whatsapp: formData.get('whatsapp').trim() || null,
+                schedule: formData.get('schedule').trim() || '0 7 * * *',
+                timezone: formData.get('timezone') || 'UTC',
+                forecastDays: Array.from(formData.getAll('forecastDays'))
+            };
+
+            try {
+                const url = currentEditingUser ? \`/users/\${encodeURIComponent(currentEditingUser.name)}\` : '/users';
+                const method = currentEditingUser ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    showStatus(result.message, 'success');
+                    closeModal();
+                    await loadUsers();
+                    await loadStats();
+                } else {
+                    showStatus('Error: ' + (result.errors ? result.errors.join(', ') : result.message), 'error');
+                }
+            } catch (error) {
+                showStatus('Error saving user: ' + error.message, 'error');
+            }
+        });
+
+        async function deleteUser(userName) {
+            if (!confirm(\`Are you sure you want to delete user "\${userName}"?\\n\\nThis action cannot be undone.\`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(\`/users/\${encodeURIComponent(userName)}\`, { 
+                    method: 'DELETE' 
+                });
+                const data = await response.json();
+                
+                showStatus(data.message, data.status === 'success' ? 'success' : 'error');
+                
+                if (data.status === 'success') {
+                    await loadUsers();
+                    await loadStats();
+                }
+            } catch (error) {
+                showStatus('Error deleting user: ' + error.message, 'error');
+            }
+        }
+
+        async function testUser(userName) {
+            showStatus('Sending test notification to ' + userName + '...', 'info');
+            
+            try {
+                const response = await fetch(\`/users/\${encodeURIComponent(userName)}/test\`, { 
+                    method: 'POST' 
+                });
+                const data = await response.json();
+                showStatus(data.message, data.status === 'success' ? 'success' : 'error');
+            } catch (error) {
+                showStatus('Error testing user: ' + error.message, 'error');
+            }
+        }
+
+        async function testAllUsers() {
+            showStatus('Sending test notifications to all users...', 'info');
+            
+            try {
+                const response = await fetch('/test-notify');
+                const result = await response.text();
+                showStatus('Test notifications sent to all users', 'success');
+            } catch (error) {
+                showStatus('Error testing all users: ' + error.message, 'error');
+            }
+        }
+
+        async function checkExtremeWeather() {
+            showStatus('Checking extreme weather for all users...', 'info');
+            
+            try {
+                const response = await fetch('/check-extreme-weather');
+                const data = await response.json();
+                showStatus(data.message, data.status === 'success' ? 'success' : 'error');
+            } catch (error) {
+                showStatus('Error checking extreme weather: ' + error.message, 'error');
+            }
+        }
+
+        async function backupDatabase() {
+            showStatus('Creating database backup...', 'info');
+            
+            try {
+                const response = await fetch('/database/backup', { method: 'POST' });
+                const data = await response.json();
+                showStatus(data.message + (data.backupPath ? ' (' + data.backupPath + ')' : ''), 
+                          data.status === 'success' ? 'success' : 'error');
+            } catch (error) {
+                showStatus('Error creating backup: ' + error.message, 'error');
+            }
+        }
+
+        async function refreshData() {
+            showStatus('Refreshing data...', 'info');
+            await loadUsers();
+            await loadStats();
+            showStatus('Data refreshed successfully', 'success');
+        }
+    </script>
+</body>
+</html>`;
+  
+  res.send(dashboardHTML);
 });
