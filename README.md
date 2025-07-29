@@ -1,8 +1,25 @@
 # HikeCastBot 🏔️ - AI-Powered Hiking Weather Notifications
 
-A cloud-based notification bot that sends intelligent hiking weather updates via Telegram, Email, and (optionally) WhatsApp. Features AI-powered weather analysis using Google's Gemini AI to provide personalized hiking recommendations and **extreme weather alerts**.
+A cloud-based notification bot that sends intelligent hiking weather updates via Telegram, Email, and (optionally) WhatsApp. Features AI-powered weather analysis using Google's Gemini AI to provide personalized hiking recommendations, **extreme weather alerts**, and a comprehensive **user management dashboard**.
 
 ## ✨ Features
+
+### 🎛️ User Management Dashboard (NEW!)
+- **Web-Based Interface**: Modern, responsive dashboard at `/dashboard`
+- **Complete CRUD Operations**: Add, edit, delete, and view users
+- **Real-Time Statistics**: User counts by notification channel
+- **Form Validation**: Client and server-side validation
+- **Test Notifications**: Send test messages to individual users
+- **Database Management**: Backup and restore functionality
+- **Mobile Friendly**: Works on desktop, tablet, and mobile devices
+
+### 💾 SQLite Database Integration (NEW!)
+- **Persistent Storage**: Automatic migration from `users.json` to SQLite
+- **ACID Compliance**: Reliable data integrity and concurrent access
+- **RESTful API**: Full user management via HTTP endpoints
+- **Automatic Backups**: Timestamped database backups
+- **Migration Support**: Seamless upgrade from JSON file storage
+- **Statistics Tracking**: User creation/update timestamps
 
 ### 🤖 AI-Powered Analysis
 - **Gemini AI Integration**: Advanced weather analysis with hiking-specific recommendations
@@ -32,6 +49,130 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
 - **Current Conditions**: Real-time weather monitoring
 - **Detailed Metrics**: Temperature, precipitation, wind, weather conditions
 - **Human-Readable**: Weather codes converted to descriptive text
+
+## 🎛️ User Management Dashboard
+
+### Dashboard Features
+Visit `http://localhost:3000/dashboard` to access the modern user management interface:
+
+#### 📊 **Real-Time Statistics**
+- Total users count
+- Users by notification channel (Telegram, Email, WhatsApp)
+- Connection status indicators
+
+#### 👤 **User Management**
+- **Add New Users**: Complete form with validation
+- **Edit Existing Users**: Modify any user data including locations, channels, schedules
+- **Delete Users**: Safe deletion with confirmation dialog
+- **Test Notifications**: Send test messages to individual users
+
+#### 🔧 **System Management**
+- **Database Backup**: Create timestamped backups
+- **Extreme Weather Check**: Manual weather alert verification
+- **Test All Users**: Send notifications to all users
+- **Data Refresh**: Update dashboard with latest information
+
+#### 📱 **Mobile Responsive**
+- **Desktop**: Full-width cards and detailed forms
+- **Tablet**: Responsive grid layout
+- **Mobile**: Stacked layout with touch-friendly buttons
+
+### Dashboard Screenshots
+
+**Main Dashboard:**
+- User cards with location tags and channel indicators
+- Quick action buttons for testing and editing
+- Real-time statistics overview
+
+**Add/Edit User Form:**
+- **Basic Information**: Name, locations (multi-line input)
+- **Notification Channels**: Checkbox selection with status indicators
+- **Contact Details**: Telegram Chat ID, Email, WhatsApp number
+- **Scheduling**: Cron format with examples and timezone selection
+- **Forecast Preferences**: Multi-select days of the week
+
+**User Cards Display:**
+- **Visual Status**: Green/red indicators for active channels
+- **Organized Data**: Clean layout with icons and color-coded tags
+- **Quick Actions**: Test, Edit, Delete buttons for each user
+
+## 🗄️ Database & API
+
+### SQLite Database
+- **Automatic Setup**: Database created on first run
+- **Migration**: Existing `users.json` automatically imported
+- **Backup System**: Manual and automatic backup creation
+- **ACID Compliance**: Reliable concurrent access and data integrity
+
+### RESTful API Endpoints
+
+#### User Management
+```http
+# Get all users
+GET /users
+
+# Get specific user
+GET /users/:identifier
+
+# Create new user
+POST /users
+Content-Type: application/json
+{
+  "name": "John Doe",
+  "locations": ["Stuttgart, Germany", "Munich, Germany"],
+  "channels": ["telegram", "email"],
+  "telegram_chat_id": "-1234567890",
+  "email": "john@example.com",
+  "schedule": "0 7 * * 6,0",
+  "timezone": "Europe/Berlin",
+  "forecastDays": ["Saturday", "Sunday"]
+}
+
+# Update user
+PUT /users/:identifier
+Content-Type: application/json
+{
+  "locations": ["Berlin, Germany"],
+  "schedule": "0 8 * * *"
+}
+
+# Delete user
+DELETE /users/:identifier
+
+# Test notification for specific user
+POST /users/:identifier/test
+```
+
+#### Database Management
+```http
+# Get database statistics
+GET /database/stats
+
+# Create database backup
+POST /database/backup
+
+# Dashboard interface
+GET /dashboard
+```
+
+### API Response Format
+```json
+{
+  "status": "success",
+  "message": "User created successfully",
+  "user": {
+    "id": 1,
+    "name": "John Doe",
+    "locations": ["Stuttgart, Germany"],
+    "channels": ["telegram", "email"],
+    "schedule": "0 7 * * *",
+    "timezone": "Europe/Berlin",
+    "forecastDays": ["Saturday", "Sunday"],
+    "created_at": "2024-01-01T00:00:00.000Z",
+    "updated_at": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
 
 ## 🚨 Extreme Weather Monitoring
 
@@ -101,17 +242,33 @@ This thunderstorm poses serious risk of lightning strikes and flash flooding...
    # Edit .env with your API keys and credentials
    ```
 
-3. **Set up user preferences:**
+3. **Set up initial user (optional):**
    ```bash
    cp users.example.json users.json
-   # Edit users.json with your locations and notification preferences
+   # Edit users.json with your initial user (will be migrated to database)
+   # OR use the web dashboard to add users after startup
    ```
 
 4. **Run the application:**
    ```bash
    npm start
    # Visit http://localhost:3000 to check status
+   # Visit http://localhost:3000/dashboard for user management
    ```
+
+### First-Time Setup
+
+#### Option 1: Web Dashboard (Recommended)
+1. Start the application: `npm start`
+2. Visit: `http://localhost:3000/dashboard`
+3. Click "Add New User" and fill out the form
+4. Test the user with the test button
+
+#### Option 2: JSON Migration
+1. Create `users.json` from `users.example.json`
+2. Edit with your user details
+3. Start the application (will auto-migrate to database)
+4. Use dashboard for future management
 
 ## 🔧 Configuration
 
@@ -127,55 +284,39 @@ GEMINI_API_KEY=your-gemini-api-key
 WHATSAPP_ACCESS_TOKEN=your-whatsapp-access-token
 WHATSAPP_PHONE_NUMBER_ID=your-phone-number-id
 WHATSAPP_VERIFY_TOKEN=your-verify-token
+
+# Optional (Database)
+DB_PATH=hikecast.db  # Custom database file path
 ```
 
-### User Configuration (users.json)
+### User Configuration
 
-#### Multi-Day Forecast (Recommended)
+#### Dashboard Form Fields
+- **Name**: Unique identifier for the user
+- **Locations**: One per line (e.g., "Stuttgart, Germany")
+- **Notification Channels**: Telegram, Email, WhatsApp
+- **Contact Information**: 
+  - Telegram Chat ID (get from @userinfobot)
+  - Email address
+  - WhatsApp number with country code
+- **Schedule**: Cron format (examples provided)
+- **Timezone**: Dropdown with common timezones
+- **Forecast Days**: Select specific days of the week
+
+#### Multi-Day Forecast Example
 ```json
-[
-  {
-    "name": "Your Name",
-    "locations": ["Stuttgart, Germany", "Munich, Germany"],
-    "channels": ["telegram", "email"],
-    "telegram_chat_id": "123456789",
-    "email": "your-email@example.com",
-    "whatsapp": "+1234567890",
-    "schedule": "0 7,18 * * *",
-    "timezone": "Europe/Berlin",
-    "forecastDays": ["Friday", "Saturday", "Sunday"]
-  }
-]
+{
+  "name": "Your Name",
+  "locations": ["Stuttgart, Germany", "Munich, Germany"],
+  "channels": ["telegram", "email"],
+  "telegram_chat_id": "123456789",
+  "email": "your-email@example.com",
+  "whatsapp": "+1234567890",
+  "schedule": "0 7,18 * * *",
+  "timezone": "Europe/Berlin",
+  "forecastDays": ["Friday", "Saturday", "Sunday"]
+}
 ```
-
-#### Single Day Forecast (Legacy Support)
-```json
-[
-  {
-    "name": "Your Name",
-    "locations": ["Stuttgart, Germany"],
-    "channels": ["telegram", "email"],
-    "telegram_chat_id": "123456789",
-    "email": "your-email@example.com",
-    "schedule": "0 7 * * *",
-    "timezone": "Europe/Berlin",
-    "forecastDay": 1
-  }
-]
-```
-
-#### Forecast Day Options
-- **forecastDays**: Array of day names for multi-day forecasts
-  - Valid values: `["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]`
-  - Example: `["Friday", "Saturday", "Sunday"]` for weekend hiking
-  - Example: `["Saturday"]` for Saturday-only forecasts
-
-- **forecastDay**: Single day index (legacy format)
-  - `0` = Today
-  - `1` = Tomorrow
-  - `2` = Day after tomorrow, etc.
-
-**Note**: Extreme weather alerts are sent regardless of `forecastDays` settings to ensure safety.
 
 #### Schedule Format (Cron)
 - `0 7 * * *` - Daily at 7:00 AM
@@ -185,10 +326,32 @@ WHATSAPP_VERIFY_TOKEN=your-verify-token
 
 ## 📡 API Endpoints
 
+### Core Application
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/` | GET | Service status |
 | `/health` | GET | Health check for monitoring |
+| `/dashboard` | GET | User management web interface |
+
+### User Management API
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/users` | GET | List all users |
+| `/users` | POST | Create new user |
+| `/users/:identifier` | GET | Get specific user |
+| `/users/:identifier` | PUT | Update user |
+| `/users/:identifier` | DELETE | Delete user |
+| `/users/:identifier/test` | POST | Send test notification |
+
+### Database Management
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/database/stats` | GET | Get database statistics |
+| `/database/backup` | POST | Create database backup |
+
+### Testing & Debugging
+| Endpoint | Method | Description |
+|----------|--------|-------------|
 | `/test-notify` | GET | Send test notifications to all users |
 | `/test-simple` | GET | Send simplified test notification (no AI) |
 | `/test-telegram-only` | GET | Test Telegram integration only |
@@ -196,10 +359,38 @@ WHATSAPP_VERIFY_TOKEN=your-verify-token
 | `/test-gemini` | GET | Test Gemini AI API connectivity |
 | `/check-extreme-weather` | GET | Manual extreme weather check |
 | `/debug` | GET | System debug information |
-| `/webhook` | GET | WhatsApp webhook verification |
-| `/webhook` | POST | WhatsApp message receiver |
 
-### Testing Endpoints
+### Testing Examples
+
+#### User Management via API
+```bash
+# Get all users
+curl http://localhost:3000/users
+
+# Add new user
+curl -X POST http://localhost:3000/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "New User",
+    "locations": ["Berlin, Germany"],
+    "channels": ["telegram"],
+    "telegram_chat_id": "987654321",
+    "schedule": "0 8 * * 6,0",
+    "timezone": "Europe/Berlin",
+    "forecastDays": ["Saturday", "Sunday"]
+  }'
+
+# Update user locations
+curl -X PUT http://localhost:3000/users/NewUser \
+  -H "Content-Type: application/json" \
+  -d '{"locations": ["Munich, Germany"]}'
+
+# Test specific user
+curl -X POST http://localhost:3000/users/NewUser/test
+
+# Delete user
+curl -X DELETE http://localhost:3000/users/NewUser
+```
 
 #### Basic Testing
 ```bash
@@ -226,6 +417,12 @@ curl http://localhost:3000/debug
 
 # Manual extreme weather check
 curl http://localhost:3000/check-extreme-weather
+
+# Database statistics
+curl http://localhost:3000/database/stats
+
+# Create database backup
+curl -X POST http://localhost:3000/database/backup
 
 # Health check
 curl http://localhost:3000/health
@@ -287,7 +484,7 @@ Perfect hiking conditions! Clear skies and mild temperatures...
    - Connect your repository
    - Set start command: `npm start`
    - Add environment variables
-   - Upload your `users.json` file
+   - Database will be created automatically
 3. **Keep Service Warm:**
    - Use UptimeRobot to ping `/health` endpoint every 5 minutes
    - Prevents free tier services from sleeping
@@ -296,6 +493,11 @@ Perfect hiking conditions! Clear skies and mild temperatures...
 - **Endpoint**: `GET /health`
 - **Response**: `{"status": "ok", "time": "2024-01-01T00:00:00.000Z"}`
 - **Purpose**: Keep service active and monitor uptime
+
+### Data Migration
+- **Automatic**: Existing `users.json` files are automatically migrated to SQLite
+- **Backup**: Original JSON files are backed up with timestamps
+- **No Downtime**: Migration happens during startup
 
 ## 📱 Notification Channels Status
 
@@ -343,13 +545,50 @@ Perfect hiking conditions! Clear skies and mild temperatures...
 
 ## 🔐 Security & Privacy
 
-- **Sensitive Data**: `users.json` and `.env` excluded from git
+- **Sensitive Data**: Database and `.env` excluded from git
 - **API Keys**: Stored as environment variables
+- **Data Validation**: Client and server-side input validation
 - **Webhook Security**: Token verification for WhatsApp
 - **Error Handling**: Graceful fallbacks for API failures
 - **Safety First**: Critical alerts override user preferences
+- **Database Integrity**: ACID compliance and automatic backups
 
 ## 🛠️ Development
+
+### Project Structure
+```
+HikeCast/
+├── views/
+│   └── dashboard.html              # User management dashboard interface
+├── index.js                       # Main application file (now cleaner!)
+├── database.js                    # SQLite database management
+├── hikecast.db                    # SQLite database (auto-created)
+├── users.json                     # Legacy user config (auto-migrated)
+├── users.example.json             # Example user configuration
+├── package.json                   # Dependencies and scripts
+├── .env                          # Environment variables
+├── .env.example                  # Environment template
+├── .gitignore                    # Git ignore rules
+└── README.md                     # This file
+```
+
+### Database Schema
+```sql
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT UNIQUE NOT NULL,
+  locations TEXT NOT NULL,           -- JSON array
+  channels TEXT NOT NULL,            -- JSON array
+  telegram_chat_id TEXT,
+  email TEXT,
+  whatsapp TEXT,
+  schedule TEXT DEFAULT '0 7 * * *',
+  timezone TEXT DEFAULT 'UTC',
+  forecast_days TEXT,               -- JSON array
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
 
 ### Adding New Features
 ```javascript
@@ -401,7 +640,17 @@ const EXTREME_WEATHER_THRESHOLDS = {
 5. **Full Test**: `curl /test-notify` - Complete workflow
 6. **Debug Info**: `curl /debug` - System configuration
 
+#### Dashboard Testing
+1. **Access Dashboard**: Visit `http://localhost:3000/dashboard`
+2. **Add Test User**: Use the "Add New User" form
+3. **Test Notification**: Click the test button for the user
+4. **Edit User**: Modify user settings and save
+5. **Delete User**: Remove test user when done
+
 #### Common Issues & Solutions
+- **Database Migration**: Check logs for migration messages
+- **User Management**: Use dashboard for easier user management
+- **API Testing**: Use `/debug` endpoint to verify database connection
 - **Gemini API Errors**: Check API key and model availability
 - **Telegram Formatting**: Messages automatically converted to plain text
 - **Message Length**: Long messages automatically split
@@ -415,6 +664,13 @@ const EXTREME_WEATHER_THRESHOLDS = {
 4. Push to branch: `git push origin feature/amazing-feature`
 5. Open a Pull Request
 
+### Development Guidelines
+- Use the dashboard for user management instead of editing JSON files
+- Test API endpoints with the provided curl examples
+- Ensure database migrations work correctly
+- Validate form inputs both client and server-side
+- Follow the existing code style and structure
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
@@ -424,8 +680,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Open-Meteo](https://open-meteo.com/) - Free weather API
 - [Google Gemini AI](https://ai.google.dev/) - AI-powered analysis
 - [Telegram Bot API](https://core.telegram.org/bots/api) - Messaging platform
+- [SQLite](https://sqlite.org/) - Embedded database engine
 - [Render](https://render.com/) - Cloud hosting platform
 
 ---
 
 **Made with ❤️ for hiking enthusiasts - Stay Safe! 🚨**
+
+### Quick Links
+- 🎛️ [User Dashboard](http://localhost:3000/dashboard) - Manage users via web interface
+- 📊 [System Status](http://localhost:3000/debug) - Check configuration and database
+- 🏥 [Health Check](http://localhost:3000/health) - Monitor service uptime
+- 📡 [API Documentation](#api-endpoints) - Full API reference

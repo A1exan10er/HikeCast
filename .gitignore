@@ -4,3 +4,4 @@ users.json
 users.json.backup.*
 hikecast.db
 hikecast_backup_*.db
+# Note: views/ directory is NOT ignored - we want to track dashboard.html
