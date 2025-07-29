@@ -484,7 +484,12 @@
                         <div class="detail-row">
                             <span class="detail-label">⏰ Schedule:</span>
                             <div class="detail-value">
-                                <code>${user.schedule}</code> (${user.timezone})
+                                <div style="margin-bottom: 5px;">
+                                    <strong>${translateCronSchedule(user.schedule, user.timezone)}</strong>
+                                </div>
+                                <div style="font-size: 0.85em; color: #666;">
+                                    <code>${user.schedule}</code> (${user.timezone})
+                                </div>
                             </div>
                         </div>
                         <div class="detail-row">
@@ -705,6 +710,68 @@
             await loadUsers();
             await loadStats();
             showStatus('Data refreshed successfully', 'success');
+        }
+
+        function translateCronSchedule(cronSchedule, timezone) {
+            if (!cronSchedule) return 'Not set';
+            
+            const parts = cronSchedule.split(' ');
+            if (parts.length !== 5) return cronSchedule; // Invalid format, return as-is
+            
+            const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+            
+            // Helper functions
+            const formatHours = (hourStr) => {
+                if (hourStr === '*') return 'every hour';
+                const hours = hourStr.split(',').map(h => {
+                    const num = parseInt(h);
+                    if (num === 0) return '12:00 AM';
+                    if (num < 12) return `${num}:00 AM`;
+                    if (num === 12) return '12:00 PM';
+                    return `${num - 12}:00 PM`;
+                });
+                return hours.join(' and ');
+            };
+            
+            const formatDaysOfWeek = (dayStr) => {
+                if (dayStr === '*') return 'every day';
+                const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const days = dayStr.split(',').map(d => {
+                    const num = parseInt(d);
+                    return dayNames[num] || `Day ${num}`;
+                });
+                
+                if (days.length === 7) return 'every day';
+                if (days.length === 5 && !days.includes('Saturday') && !days.includes('Sunday')) {
+                    return 'weekdays (Monday-Friday)';
+                }
+                if (days.length === 2 && days.includes('Saturday') && days.includes('Sunday')) {
+                    return 'weekends';
+                }
+                
+                return days.join(', ');
+            };
+            
+            const formatFrequency = (dayOfMonth, month) => {
+                if (dayOfMonth === '*' && month === '*') return '';
+                if (dayOfMonth !== '*') return ` on day ${dayOfMonth} of the month`;
+                if (month !== '*') return ` in month ${month}`;
+                return '';
+            };
+            
+            // Build the natural language description
+            const timeDescription = formatHours(hour);
+            const dayDescription = formatDaysOfWeek(dayOfWeek);
+            const frequencyDescription = formatFrequency(dayOfMonth, month);
+            
+            let description = `${timeDescription} on ${dayDescription}${frequencyDescription}`;
+            
+            // Add timezone if provided
+            if (timezone && timezone !== 'UTC') {
+                description += ` (${timezone} time)`;
+            }
+            
+            return description.charAt(0).toUpperCase() + description.slice(1);
         }
     </script>
 </body>
