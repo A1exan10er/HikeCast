@@ -2,6 +2,25 @@
 
 A cloud-based notification bot that sends intelligent hiking weather updates via Telegram, Email, and (optionally) WhatsApp. Features AI-powered weather analysis using Google's Gemini AI to provide personalized hiking recommendations, **extreme weather alerts**, and a comprehensive **user management dashboard**.
 
+## 🔧 Recent Updates & Fixes
+
+### ✨ Latest Improvements (July 2025)
+- **🤖 AI Analysis Toggle Fix**: Resolved issue where AI analysis couldn't be properly disabled
+  - Fixed checkbox state detection in form submissions
+  - Added proper boolean handling for enableAIAnalysis field
+  - Users can now successfully toggle AI analysis on/off
+- **📢 Enhanced Notification Validation**: Improved form validation for notification channels
+  - Added requirement for at least one notification channel selection
+  - Enhanced error messaging with clear, specific feedback
+  - Prevented HTML5 validation conflicts with custom validation logic
+- **🛠️ Dashboard UX Improvements**: Better user experience and error handling
+  - Added novalidate attribute to prevent browser validation conflicts
+  - Improved conditional field validation and error clearing
+  - Enhanced form submission logic for reliable data processing
+- **📊 API Response Enhancement**: Completed API data consistency
+  - Added enableAIAnalysis field to all user API responses
+  - Improved data integrity between frontend and backend
+
 ## ✨ Features
 
 ### 🎛️ User Management Dashboard (NEW!)
@@ -25,6 +44,7 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
 - **Gemini AI Integration**: Advanced weather analysis with hiking-specific recommendations
 - **Smart Suggestions**: Hiking suitability ratings, gear recommendations, and safety warnings
 - **Alternative Activities**: Suggestions for indoor/outdoor alternatives when hiking isn't ideal
+- **User-Controlled Toggle**: Enable/disable AI analysis per user via dashboard settings
 
 ### 🚨 Extreme Weather Alerts
 - **Automatic Monitoring**: Continuous monitoring for dangerous weather conditions
@@ -61,10 +81,11 @@ Visit `http://localhost:3000/dashboard` to access the modern user management int
 - Connection status indicators
 
 #### 👤 **User Management**
-- **Add New Users**: Complete form with validation
-- **Edit Existing Users**: Modify any user data including locations, channels, schedules
+- **Add New Users**: Complete form with validation and notification channel requirements
+- **Edit Existing Users**: Modify any user data including locations, channels, schedules, and AI preferences
 - **Delete Users**: Safe deletion with confirmation dialog
 - **Test Notifications**: Send test messages to individual users
+- **AI Analysis Control**: Toggle AI-powered weather analysis per user
 
 #### 🔧 **System Management**
 - **Database Backup**: Create timestamped backups
@@ -86,10 +107,11 @@ Visit `http://localhost:3000/dashboard` to access the modern user management int
 
 **Add/Edit User Form:**
 - **Basic Information**: Name, locations (multi-line input)
-- **Notification Channels**: Checkbox selection with status indicators
-- **Contact Details**: Telegram Chat ID, Email, WhatsApp number
+- **Notification Channels**: Checkbox selection with comprehensive validation
+- **Contact Details**: Telegram Chat ID, Email, WhatsApp number (conditional validation)
 - **Scheduling**: Cron format with examples and timezone selection
 - **Forecast Preferences**: Multi-select days of the week
+- **AI Features**: Toggle to enable/disable AI-powered weather analysis
 
 **User Cards Display:**
 - **Visual Status**: Green/red indicators for active channels
@@ -125,7 +147,8 @@ Content-Type: application/json
   "email": "john@example.com",
   "schedule": "0 7 * * 6,0",
   "timezone": "Europe/Berlin",
-  "forecastDays": ["Saturday", "Sunday"]
+  "forecastDays": ["Saturday", "Sunday"],
+  "enableAIAnalysis": true
 }
 
 # Update user
@@ -168,6 +191,7 @@ GET /dashboard
     "schedule": "0 7 * * *",
     "timezone": "Europe/Berlin",
     "forecastDays": ["Saturday", "Sunday"],
+    "enableAIAnalysis": true,
     "created_at": "2024-01-01T00:00:00.000Z",
     "updated_at": "2024-01-01T00:00:00.000Z"
   }
@@ -585,6 +609,7 @@ CREATE TABLE users (
   schedule TEXT DEFAULT '0 7 * * *',
   timezone TEXT DEFAULT 'UTC',
   forecast_days TEXT,               -- JSON array
+  enable_ai_analysis INTEGER DEFAULT 1,  -- AI analysis toggle (1=enabled, 0=disabled)
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -655,6 +680,9 @@ const EXTREME_WEATHER_THRESHOLDS = {
 - **Telegram Formatting**: Messages automatically converted to plain text
 - **Message Length**: Long messages automatically split
 - **Environment Variables**: Use `/debug` to verify configuration
+- **AI Analysis Toggle**: If AI analysis doesn't toggle properly, ensure the database includes the `enable_ai_analysis` column
+- **Notification Channel Validation**: Select at least one notification channel and provide required contact information
+- **Form Validation**: Clear specific error messages are shown for missing required fields based on selected channels
 
 ## 🤝 Contributing
 
