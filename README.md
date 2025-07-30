@@ -658,6 +658,13 @@ Perfect hiking conditions! Clear skies and mild temperatures...
 HikeCast/
 ├── views/
 │   └── dashboard.html              # User management dashboard interface
+├── tests/                          # Test suite (all test scripts)
+│   ├── README.md                   # Test documentation
+│   ├── test_form_submission.js     # Form submission tests
+│   ├── test_ui_integration.js      # UI integration tests
+│   ├── test_extreme_weather_ai.js  # AI weather detection tests
+│   ├── test_configurable_extreme_weather.js  # Configurable alerts tests
+│   └── quick_test.js               # Quick verification test
 ├── index.js                       # Main application file (now cleaner!)
 ├── database.js                    # SQLite database management
 ├── hikecast.db                    # SQLite database (auto-created)
@@ -778,6 +785,26 @@ const EXTREME_WEATHER_THRESHOLDS = {
 - Ensure database migrations work correctly
 - Validate form inputs both client and server-side
 - Follow the existing code style and structure
+
+### Testing
+The application includes a comprehensive test suite located in the `tests/` folder:
+
+```bash
+# Run all tests
+for test in tests/test_*.js; do echo "Running $test"; node "$test"; echo ""; done
+
+# Run specific tests
+node tests/test_form_submission.js      # Test form submission functionality
+node tests/test_ui_integration.js       # Test complete UI workflow
+node tests/quick_test.js                # Quick verification test
+```
+
+**Prerequisites for testing:**
+- Server must be running on port 3000: `node index.js`
+- All npm dependencies installed: `npm install`
+- SQLite database properly initialized
+
+See `tests/README.md` for detailed test documentation.
 
 ## 📄 License
 

@@ -1210,7 +1210,10 @@ app.post('/users', async (req, res) => {
       whatsapp: newUserData.whatsapp || null,
       schedule: newUserData.schedule || "0 7 * * *",
       timezone: newUserData.timezone || "UTC",
-      forecastDays: newUserData.forecastDays || ["Saturday", "Sunday"]
+      forecastDays: newUserData.forecastDays || ["Saturday", "Sunday"],
+      enableAIAnalysis: newUserData.enableAIAnalysis,
+      enableExtremeWeatherAlerts: newUserData.enableExtremeWeatherAlerts,
+      extremeWeatherCheckInterval: newUserData.extremeWeatherCheckInterval
     };
     
     const newUser = await db.addUser(userData);
@@ -1973,7 +1976,10 @@ app.post('/users', async (req, res) => {
       whatsapp: newUserData.whatsapp || null,
       schedule: newUserData.schedule || "0 7 * * *",
       timezone: newUserData.timezone || "UTC",
-      forecastDays: newUserData.forecastDays || ["Saturday", "Sunday"]
+      forecastDays: newUserData.forecastDays || ["Saturday", "Sunday"],
+      enableAIAnalysis: newUserData.enableAIAnalysis,
+      enableExtremeWeatherAlerts: newUserData.enableExtremeWeatherAlerts,
+      extremeWeatherCheckInterval: newUserData.extremeWeatherCheckInterval
     };
     
     const newUser = await db.addUser(userData);

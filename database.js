@@ -260,7 +260,7 @@ class UserDatabase {
           const forecastDays = updatedUser.forecastDays ? JSON.stringify(updatedUser.forecastDays) : null;
           const enableAIAnalysis = updatedUser.enableAIAnalysis !== false ? 1 : 0;
           const enableExtremeWeatherAlerts = updatedUser.enableExtremeWeatherAlerts !== false ? 1 : 0;
-          const extremeWeatherCheckInterval = updatedUser.extremeWeatherCheckInterval || existingUser.extremeWeatherCheckInterval || '0 */2 * * *';
+          const extremeWeatherCheckInterval = updatedUser.extremeWeatherCheckInterval || currentUser.extremeWeatherCheckInterval || '0 */2 * * *';
 
           const stmt = this.db.prepare(`
             UPDATE users SET

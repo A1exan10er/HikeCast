@@ -474,6 +474,41 @@
                     <div class="form-help">Include AI-powered weather insights and hiking recommendations in notifications</div>
                 </div>
                 
+                <div class="form-group">
+                    <label>Extreme Weather Alerts</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="enable-extreme-weather-alerts" name="enableExtremeWeatherAlerts" value="true">
+                            <label for="enable-extreme-weather-alerts">🚨 Enable Extreme Weather Alerts</label>
+                        </div>
+                    </div>
+                    <div class="form-help">Receive automatic alerts for dangerous weather conditions</div>
+                </div>
+                
+                <div class="form-group conditional-field" id="extreme-weather-interval-group">
+                    <label for="extreme-weather-check-interval">⏰ Alert Check Frequency</label>
+                    <select id="extreme-weather-check-interval" name="extremeWeatherCheckInterval" required>
+                        <option value="*/30 * * * *">Every 30 minutes (High frequency)</option>
+                        <option value="0 * * * *">Every hour</option>
+                        <option value="0 */2 * * *" selected>Every 2 hours (Default)</option>
+                        <option value="0 */4 * * *">Every 4 hours</option>
+                        <option value="0 8,20 * * *">Twice daily (8 AM & 8 PM)</option>
+                        <option value="0 8 * * *">Once daily (8 AM)</option>
+                        <option value="custom">Custom interval...</option>
+                    </select>
+                    <div class="form-help">How often to check for extreme weather conditions</div>
+                </div>
+                
+                <div class="form-group conditional-field" id="custom-interval-group" style="display: none;">
+                    <label for="custom-extreme-weather-interval">Custom Cron Expression</label>
+                    <input type="text" id="custom-extreme-weather-interval" name="customExtremeWeatherInterval" 
+                           placeholder="0 */3 * * *" pattern="^[0-9*/,-]+\s+[0-9*/,-]+\s+[0-9*/,-]+\s+[0-9*/,-]+\s+[0-9*/,-]+$">
+                    <div class="form-help">
+                        Enter a valid cron expression (e.g., "0 */3 * * *" for every 3 hours)
+                        <br><small>Format: minute hour day month weekday</small>
+                    </div>
+                </div>
+                
                 <div style="text-align: right; margin-top: 20px;">
                     <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary" id="save-btn">Save User</button>
@@ -518,6 +553,37 @@
                     requirement.textContent = '(Using your entered value)';
                     requirement.style.color = '#17a2b8';
                     highlightUserInput(this, requirement);
+                }
+            });
+            
+            // Add event listener for extreme weather alerts checkbox
+            document.getElementById('enable-extreme-weather-alerts').addEventListener('change', toggleConditionalFields);
+            
+            // Add event listener for extreme weather interval select
+            document.getElementById('extreme-weather-check-interval').addEventListener('change', function() {
+                const customGroup = document.getElementById('custom-interval-group');
+                if (this.value === 'custom') {
+                    customGroup.style.display = 'block';
+                    document.getElementById('custom-extreme-weather-interval').required = true;
+                } else {
+                    customGroup.style.display = 'none';
+                    document.getElementById('custom-extreme-weather-interval').required = false;
+                    clearFieldError('custom-extreme-weather-interval');
+                }
+            });
+            
+            // Add validation for custom extreme weather interval input
+            document.getElementById('custom-extreme-weather-interval').addEventListener('input', function() {
+                const value = this.value.trim();
+                if (value) {
+                    const validation = validateCronExpression(value);
+                    if (!validation.valid) {
+                        showFieldError('custom-extreme-weather-interval', validation.error);
+                    } else {
+                        clearFieldError('custom-extreme-weather-interval');
+                    }
+                } else {
+                    clearFieldError('custom-extreme-weather-interval');
                 }
             });
         });
@@ -636,6 +702,20 @@
                 whatsappRequirement.textContent = '';
                 clearFieldError('whatsapp');
             }
+            
+            // Toggle extreme weather interval field
+            const extremeWeatherEnabled = document.getElementById('enable-extreme-weather-alerts').checked;
+            const intervalGroup = document.getElementById('extreme-weather-interval-group');
+            const intervalSelect = document.getElementById('extreme-weather-check-interval');
+            
+            if (extremeWeatherEnabled) {
+                intervalGroup.style.display = 'block';
+                intervalSelect.required = true;
+            } else {
+                intervalGroup.style.display = 'none';
+                intervalSelect.required = false;
+                document.getElementById('custom-interval-group').style.display = 'none';
+            }
         }
 
         // Function to validate conditional fields
@@ -686,6 +766,24 @@
                 }
             }
             
+            // Validate extreme weather custom interval if needed
+            if (document.getElementById('enable-extreme-weather-alerts').checked) {
+                const intervalSelect = document.getElementById('extreme-weather-check-interval');
+                if (intervalSelect.value === 'custom') {
+                    const customIntervalValue = document.getElementById('custom-extreme-weather-interval').value.trim();
+                    if (!customIntervalValue) {
+                        showFieldError('custom-extreme-weather-interval', 'Custom interval is required when "Custom" is selected');
+                        isValid = false;
+                    } else {
+                        const validation = validateCronExpression(customIntervalValue);
+                        if (!validation.valid) {
+                            showFieldError('custom-extreme-weather-interval', validation.error);
+                            isValid = false;
+                        }
+                    }
+                }
+            }
+            
             return isValid;
         }
 
@@ -708,12 +806,23 @@
                 errorDiv.style.fontSize = '12px';
                 errorDiv.style.marginTop = '5px';
             } else {
-                const input = document.getElementById(fieldType + (fieldType === 'telegram' ? '_chat_id' : ''));
+                let inputId = fieldType;
+                if (fieldType === 'telegram') {
+                    inputId = 'telegram_chat_id';
+                } else if (fieldType === 'custom-extreme-weather-interval') {
+                    inputId = 'custom-extreme-weather-interval';
+                }
+                
+                const input = document.getElementById(inputId);
                 const errorDiv = document.getElementById(fieldType + '-error');
                 
-                input.classList.add('validation-error');
-                errorDiv.textContent = message;
-                errorDiv.style.display = 'block';
+                if (input) {
+                    input.classList.add('validation-error');
+                }
+                if (errorDiv) {
+                    errorDiv.textContent = message;
+                    errorDiv.style.display = 'block';
+                }
             }
         }
 
@@ -725,18 +834,84 @@
                     errorDiv.style.display = 'none';
                 }
             } else {
-                const input = document.getElementById(fieldType + (fieldType === 'telegram' ? '_chat_id' : ''));
+                let inputId = fieldType;
+                if (fieldType === 'telegram') {
+                    inputId = 'telegram_chat_id';
+                } else if (fieldType === 'custom-extreme-weather-interval') {
+                    inputId = 'custom-extreme-weather-interval';
+                }
+                
+                const input = document.getElementById(inputId);
                 const errorDiv = document.getElementById(fieldType + '-error');
                 
-                input.classList.remove('validation-error');
-                errorDiv.textContent = '';
-                errorDiv.style.display = 'none';
+                if (input) {
+                    input.classList.remove('validation-error');
+                }
+                if (errorDiv) {
+                    errorDiv.textContent = '';
+                    errorDiv.style.display = 'none';
+                }
             }
         }
 
         function isValidEmail(email) {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             return emailRegex.test(email);
+        }
+        
+        // Helper function to convert cron intervals to human-readable descriptions
+        function getIntervalDescription(interval) {
+            if (!interval) return 'Default (Every 2 hours)';
+            
+            const descriptions = {
+                '*/30 * * * *': 'Every 30 minutes',
+                '0 * * * *': 'Every hour',
+                '0 */2 * * *': 'Every 2 hours',
+                '0 */4 * * *': 'Every 4 hours',
+                '0 8,20 * * *': 'Twice daily (8 AM & 8 PM)',
+                '0 8 * * *': 'Once daily (8 AM)'
+            };
+            
+            return descriptions[interval] || `Custom (${interval})`;
+        }
+        
+        // Validate cron expression for custom extreme weather interval
+        function validateCronExpression(expression) {
+            if (!expression || typeof expression !== 'string') {
+                return { valid: false, error: 'Cron expression is required' };
+            }
+            
+            const parts = expression.trim().split(/\s+/);
+            if (parts.length !== 5) {
+                return { valid: false, error: 'Cron expression must have exactly 5 parts (minute hour day month weekday)' };
+            }
+            
+            const [minute, hour, day, month, weekday] = parts;
+            
+            // Basic validation for each part
+            const validations = [
+                { part: minute, name: 'minute', min: 0, max: 59 },
+                { part: hour, name: 'hour', min: 0, max: 23 },
+                { part: day, name: 'day', min: 1, max: 31 },
+                { part: month, name: 'month', min: 1, max: 12 },
+                { part: weekday, name: 'weekday', min: 0, max: 6 }
+            ];
+            
+            for (const { part, name, min, max } of validations) {
+                if (part === '*' || part.includes('/') || part.includes(',') || part.includes('-')) {
+                    // Complex expressions - just basic check
+                    if (!/^[\d*,\-\/]+$/.test(part)) {
+                        return { valid: false, error: `Invalid ${name} part: ${part}` };
+                    }
+                } else {
+                    const num = parseInt(part);
+                    if (isNaN(num) || num < min || num > max) {
+                        return { valid: false, error: `${name} must be between ${min} and ${max}, got: ${part}` };
+                    }
+                }
+            }
+            
+            return { valid: true };
         }
 
         async function loadStats() {
@@ -891,6 +1066,16 @@
                             </div>
                         </div>
                         <div class="detail-row">
+                            <span class="detail-label">🚨 Extreme Weather Alerts:</span>
+                            <div class="detail-value">
+                                ${user.enableExtremeWeatherAlerts !== false ? '✅ Enabled' : '❌ Disabled'}
+                                ${user.enableExtremeWeatherAlerts !== false ? 
+                                    `<br><small class="form-help">Check interval: ${getIntervalDescription(user.extremeWeatherCheckInterval)}</small>` : 
+                                    ''
+                                }
+                            </div>
+                        </div>
+                        <div class="detail-row">
                             <span class="detail-label">🔗 Status:</span>
                             <div class="detail-value">
                                 Telegram: ${user.hasValidTelegramId ? '✅' : '❌'}
@@ -997,6 +1182,36 @@
             // Set AI analysis setting (default to enabled for existing users if not specified)
             document.getElementById('enable-ai-analysis').checked = user.enableAIAnalysis !== false;
             
+            // Set extreme weather alerts setting (default to enabled for existing users if not specified)
+            document.getElementById('enable-extreme-weather-alerts').checked = user.enableExtremeWeatherAlerts !== false;
+            
+            // Set extreme weather check interval
+            const intervalSelect = document.getElementById('extreme-weather-check-interval');
+            const customIntervalInput = document.getElementById('custom-extreme-weather-interval');
+            const interval = user.extremeWeatherCheckInterval || '0 */2 * * *';
+            
+            // Check if it's a predefined interval
+            let foundPredefined = false;
+            for (let option of intervalSelect.options) {
+                if (option.value === interval) {
+                    intervalSelect.value = interval;
+                    foundPredefined = true;
+                    break;
+                }
+            }
+            
+            // If not predefined, set to custom
+            if (!foundPredefined && interval !== '0 */2 * * *') {
+                intervalSelect.value = 'custom';
+                customIntervalInput.value = interval;
+                document.getElementById('custom-interval-group').style.display = 'block';
+            } else {
+                document.getElementById('custom-interval-group').style.display = 'none';
+            }
+            
+            // Toggle conditional fields
+            toggleConditionalFields();
+            
             // IMPORTANT: Populate contact fields AFTER setting channels
             // This ensures the fields are properly visible and populated
             setTimeout(() => {
@@ -1031,6 +1246,13 @@
             // Enable AI analysis by default for new users
             document.getElementById('enable-ai-analysis').checked = true;
             
+            // Enable extreme weather alerts by default for new users
+            document.getElementById('enable-extreme-weather-alerts').checked = true;
+            
+            // Set default extreme weather check interval
+            document.getElementById('extreme-weather-check-interval').value = '0 */2 * * *';
+            document.getElementById('custom-interval-group').style.display = 'none';
+            
             // Clear all validation errors
             clearFieldError('telegram');
             clearFieldError('email');
@@ -1062,6 +1284,13 @@
             }
             
             const formData = new FormData(this);
+            
+            // Get extreme weather check interval
+            let extremeWeatherCheckInterval = formData.get('extremeWeatherCheckInterval');
+            if (extremeWeatherCheckInterval === 'custom') {
+                extremeWeatherCheckInterval = formData.get('customExtremeWeatherInterval').trim();
+            }
+            
             const userData = {
                 name: formData.get('name').trim(),
                 locations: formData.get('locations').split('\n').map(l => l.trim()).filter(l => l),
@@ -1072,7 +1301,9 @@
                 schedule: formData.get('schedule').trim() || '0 7 * * *',
                 timezone: formData.get('timezone') || 'Europe/Berlin',
                 forecastDays: Array.from(formData.getAll('forecastDays')),
-                enableAIAnalysis: document.getElementById('enable-ai-analysis').checked
+                enableAIAnalysis: document.getElementById('enable-ai-analysis').checked,
+                enableExtremeWeatherAlerts: document.getElementById('enable-extreme-weather-alerts').checked,
+                extremeWeatherCheckInterval: extremeWeatherCheckInterval || '0 */2 * * *'
             };
 
             try {
