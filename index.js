@@ -331,6 +331,49 @@ function getWeatherDescription(weatherCode) {
   return codes[weatherCode] || `Weather code ${weatherCode}`;
 }
 
+// Provide basic weather assessment without AI
+function getBasicWeatherAssessment(dayData) {
+  const { tempMax, tempMin, precip, weatherCode } = dayData;
+  let assessment = '';
+  
+  // Temperature assessment
+  if (tempMax >= 25) {
+    assessment += 'Warm weather ideal for hiking. ';
+  } else if (tempMax >= 15) {
+    assessment += 'Pleasant temperatures for outdoor activities. ';
+  } else if (tempMax >= 5) {
+    assessment += 'Cool weather, dress warmly. ';
+  } else {
+    assessment += 'Cold conditions, ensure proper winter gear. ';
+  }
+  
+  // Precipitation assessment
+  if (precip > 10) {
+    assessment += 'Heavy rain expected - consider postponing outdoor plans.';
+  } else if (precip > 2) {
+    assessment += 'Light to moderate rain - pack waterproof gear.';
+  } else if (precip > 0) {
+    assessment += 'Minimal precipitation expected.';
+  } else {
+    assessment += 'Dry conditions expected.';
+  }
+  
+  // Weather condition assessment
+  if (weatherCode >= 95) {
+    assessment += ' Thunderstorms forecasted - stay indoors.';
+  } else if (weatherCode >= 80) {
+    assessment += ' Rain showers likely.';
+  } else if (weatherCode >= 70) {
+    assessment += ' Snow conditions expected.';
+  } else if (weatherCode >= 60) {
+    assessment += ' Rainy weather ahead.';
+  } else if (weatherCode <= 3) {
+    assessment += ' Clear to partly cloudy skies.';
+  }
+  
+  return assessment;
+}
+
 // Analyze weather with Gemini AI and provide hiking suggestions
 async function analyzeWeatherWithGemini(weatherData, location) {
   if (!genAI) {
@@ -493,25 +536,30 @@ async function notifyUser(user) {
         message += `🌧️ **Precipitation**: ${dayData.precip}mm\n`;
         message += `☁️ **Conditions**: ${getWeatherDescription(dayData.weatherCode)}\n\n`;
         
-        // Get Gemini analysis for this day
-        try {
-          const geminiAnalysis = await analyzeWeatherWithGemini({
-            date: dayData.date,
-            tempMax: dayData.tempMax,
-            tempMin: dayData.tempMin,
-            precip: dayData.precip,
-            weatherCode: dayData.weatherCode,
-            dayLabel: `${dayData.dayName} (${dayData.relativeLabel})`
-          }, `${geo.name}, ${geo.country}`);
-          
-          if (geminiAnalysis) {
-            message += `🤖 **AI Analysis for ${dayData.dayName}**:\n${geminiAnalysis}`;
-          } else {
+        // Include AI analysis only if user has it enabled
+        if (user.enableAIAnalysis !== false) {
+          try {
+            const geminiAnalysis = await analyzeWeatherWithGemini({
+              date: dayData.date,
+              tempMax: dayData.tempMax,
+              tempMin: dayData.tempMin,
+              precip: dayData.precip,
+              weatherCode: dayData.weatherCode,
+              dayLabel: `${dayData.dayName} (${dayData.relativeLabel})`
+            }, `${geo.name}, ${geo.country}`);
+            
+            if (geminiAnalysis) {
+              message += `🤖 **AI Analysis for ${dayData.dayName}**:\n${geminiAnalysis}`;
+            } else {
+              message += `📊 **Basic Assessment**: Check weather conditions before heading out!`;
+            }
+          } catch (error) {
+            console.error(`Gemini analysis failed for ${dayData.dayName}:`, error.message);
             message += `📊 **Basic Assessment**: Check weather conditions before heading out!`;
           }
-        } catch (error) {
-          console.error(`Gemini analysis failed for ${dayData.dayName}:`, error.message);
-          message += `📊 **Basic Assessment**: Check weather conditions before heading out!`;
+        } else {
+          // User has disabled AI analysis, show basic assessment only
+          message += `📊 **Weather Summary**: ${getBasicWeatherAssessment(dayData)}`;
         }
         
         // Add separator between days (except for the last day)
@@ -952,6 +1000,7 @@ app.get('/users', async (req, res) => {
       schedule: user.schedule,
       timezone: user.timezone,
       forecastDays: user.forecastDays,
+      enableAIAnalysis: user.enableAIAnalysis,
       hasValidTelegramId: !!user.telegram_chat_id,
       hasValidEmail: !!user.email,
       hasValidWhatsApp: !!user.whatsapp,
@@ -993,6 +1042,7 @@ app.get('/users/:identifier', async (req, res) => {
       schedule: user.schedule,
       timezone: user.timezone,
       forecastDays: user.forecastDays,
+      enableAIAnalysis: user.enableAIAnalysis,
       hasValidTelegramId: !!user.telegram_chat_id,
       hasValidEmail: !!user.email,
       hasValidWhatsApp: !!user.whatsapp,
@@ -1335,6 +1385,7 @@ app.get('/debug', async (req, res) => {
         schedule: user.schedule,
         timezone: user.timezone,
         forecastDays: user.forecastDays,
+      enableAIAnalysis: user.enableAIAnalysis,
         created_at: user.created_at,
         updated_at: user.updated_at
       }))
@@ -1702,6 +1753,7 @@ app.get('/users', async (req, res) => {
       schedule: user.schedule,
       timezone: user.timezone,
       forecastDays: user.forecastDays,
+      enableAIAnalysis: user.enableAIAnalysis,
       hasValidTelegramId: !!user.telegram_chat_id,
       hasValidEmail: !!user.email,
       hasValidWhatsApp: !!user.whatsapp,
@@ -1743,6 +1795,7 @@ app.get('/users/:identifier', async (req, res) => {
       schedule: user.schedule,
       timezone: user.timezone,
       forecastDays: user.forecastDays,
+      enableAIAnalysis: user.enableAIAnalysis,
       hasValidTelegramId: !!user.telegram_chat_id,
       hasValidEmail: !!user.email,
       hasValidWhatsApp: !!user.whatsapp,
@@ -2085,6 +2138,7 @@ app.get('/debug', async (req, res) => {
         schedule: user.schedule,
         timezone: user.timezone,
         forecastDays: user.forecastDays,
+      enableAIAnalysis: user.enableAIAnalysis,
         created_at: user.created_at,
         updated_at: user.updated_at
       }))

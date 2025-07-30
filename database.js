@@ -41,6 +41,7 @@ class UserDatabase {
           schedule TEXT DEFAULT '0 7 * * *',
           timezone TEXT DEFAULT 'UTC',
           forecast_days TEXT,
+          enable_ai_analysis INTEGER DEFAULT 1,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
@@ -52,6 +53,41 @@ class UserDatabase {
           reject(err);
         } else {
           console.log('Users table created or verified');
+          // Check if we need to add the new column for existing tables
+          this.addAIAnalysisColumn()
+            .then(() => resolve())
+            .catch(reject);
+        }
+      });
+    });
+  }
+
+  // Add enable_ai_analysis column if it doesn't exist (for existing databases)
+  addAIAnalysisColumn() {
+    return new Promise((resolve, reject) => {
+      // Check if column exists
+      this.db.all("PRAGMA table_info(users)", (err, rows) => {
+        if (err) {
+          console.error('Error checking table structure:', err);
+          reject(err);
+          return;
+        }
+        
+        const hasAIColumn = rows.some(row => row.name === 'enable_ai_analysis');
+        
+        if (!hasAIColumn) {
+          console.log('Adding enable_ai_analysis column to existing table...');
+          this.db.run("ALTER TABLE users ADD COLUMN enable_ai_analysis INTEGER DEFAULT 1", (err) => {
+            if (err) {
+              console.error('Error adding enable_ai_analysis column:', err);
+              reject(err);
+            } else {
+              console.log('✅ Added enable_ai_analysis column');
+              resolve();
+            }
+          });
+        } else {
+          console.log('enable_ai_analysis column already exists');
           resolve();
         }
       });
@@ -79,10 +115,7 @@ class UserDatabase {
           }
         }
         
-        // Backup original file
-        const backupPath = `users.json.backup.${Date.now()}`;
-        fs.copyFileSync('users.json', backupPath);
-        console.log(`📁 Backed up original users.json to ${backupPath}`);
+        console.log('✅ Migration from users.json completed successfully');
         
         return true;
       } else {
@@ -99,13 +132,14 @@ class UserDatabase {
   addUser(userData) {
     return new Promise((resolve, reject) => {
       const stmt = this.db.prepare(`
-        INSERT INTO users (name, locations, channels, telegram_chat_id, email, whatsapp, schedule, timezone, forecast_days)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (name, locations, channels, telegram_chat_id, email, whatsapp, schedule, timezone, forecast_days, enable_ai_analysis)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const locations = Array.isArray(userData.locations) ? JSON.stringify(userData.locations) : userData.locations;
       const channels = Array.isArray(userData.channels) ? JSON.stringify(userData.channels) : userData.channels;
       const forecastDays = userData.forecastDays ? JSON.stringify(userData.forecastDays) : null;
+      const enableAIAnalysis = userData.enableAIAnalysis !== false ? 1 : 0; // Default to enabled
 
       stmt.run([
         userData.name,
@@ -116,7 +150,8 @@ class UserDatabase {
         userData.whatsapp || null,
         userData.schedule || '0 7 * * *',
         userData.timezone || 'UTC',
-        forecastDays
+        forecastDays,
+        enableAIAnalysis
       ], function(err) {
         if (err) {
           reject(err);
@@ -186,12 +221,13 @@ class UserDatabase {
           const locations = Array.isArray(updatedUser.locations) ? JSON.stringify(updatedUser.locations) : updatedUser.locations;
           const channels = Array.isArray(updatedUser.channels) ? JSON.stringify(updatedUser.channels) : updatedUser.channels;
           const forecastDays = updatedUser.forecastDays ? JSON.stringify(updatedUser.forecastDays) : null;
+          const enableAIAnalysis = updatedUser.enableAIAnalysis !== false ? 1 : 0;
 
           const stmt = this.db.prepare(`
             UPDATE users SET
               name = ?, locations = ?, channels = ?, telegram_chat_id = ?, 
               email = ?, whatsapp = ?, schedule = ?, timezone = ?, 
-              forecast_days = ?, updated_at = CURRENT_TIMESTAMP
+              forecast_days = ?, enable_ai_analysis = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
           `);
 
@@ -205,6 +241,7 @@ class UserDatabase {
             updatedUser.schedule,
             updatedUser.timezone,
             forecastDays,
+            enableAIAnalysis,
             currentUser.id
           ], function(err) {
             if (err) {
@@ -267,6 +304,7 @@ class UserDatabase {
       schedule: row.schedule,
       timezone: row.timezone,
       forecastDays: row.forecast_days ? JSON.parse(row.forecast_days) : null,
+      enableAIAnalysis: row.enable_ai_analysis !== 0, // Convert from SQLite INTEGER to boolean
       created_at: row.created_at,
       updated_at: row.updated_at
     };

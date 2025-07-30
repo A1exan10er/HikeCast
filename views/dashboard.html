@@ -231,6 +231,65 @@
             margin-top: 5px; 
         }
         .required { color: #dc3545; }
+        
+        /* Add new styles for conditional field display */
+        .conditional-field {
+            transition: all 0.3s ease;
+        }
+        
+        .conditional-field.hidden {
+            display: none !important;
+        }
+        
+        .conditional-field.required {
+            border-left: 4px solid #667eea;
+            padding-left: 15px;
+            background-color: #f8f9ff;
+        }
+        
+        .field-requirement {
+            font-size: 0.8em;
+            color: #667eea;
+            font-weight: bold;
+            margin-top: 3px;
+        }
+        
+        .validation-error {
+            border-color: #dc3545 !important;
+            background-color: #fff5f5 !important;
+        }
+
+        /* Add to existing styles */
+        .field-requirement.restored {
+            color: #28a745 !important;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .input-restored {
+            border-color: #28a745 !important;
+            background-color: #f8fff8 !important;
+            animation: highlight 1s ease-out;
+        }
+
+        @keyframes highlight {
+            0% { background-color: #d4edda; }
+            100% { background-color: #f8fff8; }
+        }
+
+        .field-requirement.user-input {
+            color: #17a2b8 !important;
+            font-style: italic;
+        }
+
+        .input-user-modified {
+            border-color: #17a2b8 !important;
+            background-color: #f0f8ff !important;
+        }
     </style>
 </head>
 <body>
@@ -284,7 +343,7 @@
                 <h2 id="modal-title">Add New User</h2>
                 <span class="close" onclick="closeModal()">&times;</span>
             </div>
-            <form id="userForm">
+            <form id="userForm" novalidate>
                 <div class="form-group">
                     <label for="name">Name <span class="required">*</span></label>
                     <input type="text" id="name" name="name" required>
@@ -301,36 +360,49 @@
                     <label>Notification Channels <span class="required">*</span></label>
                     <div class="checkbox-group">
                         <div class="checkbox-item">
-                            <input type="checkbox" id="channel-telegram" name="channels" value="telegram">
+                            <input type="checkbox" id="channel-telegram" name="channels" value="telegram" onchange="toggleConditionalFields()">
                             <label for="channel-telegram">📱 Telegram</label>
                         </div>
                         <div class="checkbox-item">
-                            <input type="checkbox" id="channel-email" name="channels" value="email">
+                            <input type="checkbox" id="channel-email" name="channels" value="email" onchange="toggleConditionalFields()">
                             <label for="channel-email">📧 Email</label>
                         </div>
                         <div class="checkbox-item">
-                            <input type="checkbox" id="channel-whatsapp" name="channels" value="whatsapp">
+                            <input type="checkbox" id="channel-whatsapp" name="channels" value="whatsapp" onchange="toggleConditionalFields()">
                             <label for="channel-whatsapp">📞 WhatsApp</label>
                         </div>
                     </div>
                 </div>
                 
-                <div class="form-group">
-                    <label for="telegram_chat_id">Telegram Chat ID</label>
+                <!-- Conditional Contact Fields -->
+                <div class="form-group conditional-field" id="telegram-field">
+                    <label for="telegram_chat_id">
+                        Telegram Chat ID <span class="required">*</span>
+                        <span class="field-requirement" id="telegram-requirement"></span>
+                    </label>
                     <input type="text" id="telegram_chat_id" name="telegram_chat_id" placeholder="-4696289808">
                     <div class="form-help">Required if Telegram channel is selected. Get from @userinfobot</div>
+                    <div class="error-message" id="telegram-error" style="display: none;"></div>
                 </div>
                 
-                <div class="form-group">
-                    <label for="email">Email Address</label>
+                <div class="form-group conditional-field" id="email-field">
+                    <label for="email">
+                        Email Address <span class="required">*</span>
+                        <span class="field-requirement" id="email-requirement"></span>
+                    </label>
                     <input type="email" id="email" name="email" placeholder="user@example.com">
                     <div class="form-help">Required if Email channel is selected</div>
+                    <div class="error-message" id="email-error" style="display: none;"></div>
                 </div>
                 
-                <div class="form-group">
-                    <label for="whatsapp">WhatsApp Number</label>
+                <div class="form-group conditional-field" id="whatsapp-field">
+                    <label for="whatsapp">
+                        WhatsApp Number <span class="required">*</span>
+                        <span class="field-requirement" id="whatsapp-requirement"></span>
+                    </label>
                     <input type="text" id="whatsapp" name="whatsapp" placeholder="+4915225644687">
                     <div class="form-help">Required if WhatsApp channel is selected. Include country code</div>
+                    <div class="error-message" id="whatsapp-error" style="display: none;"></div>
                 </div>
                 
                 <div class="form-group">
@@ -345,7 +417,7 @@
                     <label for="timezone">Timezone</label>
                     <select id="timezone" name="timezone">
                         <option value="UTC">UTC</option>
-                        <option value="Europe/Berlin">Europe/Berlin</option>
+                        <option value="Europe/Berlin" selected>Europe/Berlin</option>
                         <option value="Europe/London">Europe/London</option>
                         <option value="Europe/Paris">Europe/Paris</option>
                         <option value="America/New_York">America/New_York</option>
@@ -391,6 +463,17 @@
                     <div class="form-help">Select which days to receive weather forecasts</div>
                 </div>
                 
+                <div class="form-group">
+                    <label>AI Features</label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="enable-ai-analysis" name="enableAIAnalysis" value="true">
+                            <label for="enable-ai-analysis">🤖 Enable AI Weather Analysis</label>
+                        </div>
+                    </div>
+                    <div class="form-help">Include AI-powered weather insights and hiking recommendations in notifications</div>
+                </div>
+                
                 <div style="text-align: right; margin-top: 20px;">
                     <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary" id="save-btn">Save User</button>
@@ -402,11 +485,41 @@
     <script>
         let currentEditingUser = null;
         let allUsers = [];
+        let originalUserData = {}; // Store original values
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
             loadUsers();
             loadStats();
+            toggleConditionalFields(); // Initialize field visibility
+            
+            // Add input event listeners to detect user modifications
+            document.getElementById('telegram_chat_id').addEventListener('input', function() {
+                if (this.value && this.value !== originalUserData.telegram_chat_id) {
+                    const requirement = document.getElementById('telegram-requirement');
+                    requirement.textContent = '(Using your entered value)';
+                    requirement.style.color = '#17a2b8';
+                    highlightUserInput(this, requirement);
+                }
+            });
+            
+            document.getElementById('email').addEventListener('input', function() {
+                if (this.value && this.value !== originalUserData.email) {
+                    const requirement = document.getElementById('email-requirement');
+                    requirement.textContent = '(Using your entered value)';
+                    requirement.style.color = '#17a2b8';
+                    highlightUserInput(this, requirement);
+                }
+            });
+            
+            document.getElementById('whatsapp').addEventListener('input', function() {
+                if (this.value && this.value !== originalUserData.whatsapp) {
+                    const requirement = document.getElementById('whatsapp-requirement');
+                    requirement.textContent = '(Using your entered value)';
+                    requirement.style.color = '#17a2b8';
+                    highlightUserInput(this, requirement);
+                }
+            });
         });
 
         function showStatus(message, type = 'success') {
@@ -415,6 +528,215 @@
             status.className = 'status ' + type;
             status.style.display = 'block';
             setTimeout(() => status.style.display = 'none', 5000);
+        }
+
+        // Enhanced function to toggle conditional fields based on selected channels
+        function toggleConditionalFields() {
+            const telegramChecked = document.getElementById('channel-telegram').checked;
+            const emailChecked = document.getElementById('channel-email').checked;
+            const whatsappChecked = document.getElementById('channel-whatsapp').checked;
+            
+            console.log('Toggle fields - Telegram:', telegramChecked, 'Email:', emailChecked, 'WhatsApp:', whatsappChecked);
+            console.log('Available original data:', originalUserData);
+            
+            // Clear channels error if at least one channel is selected
+            if (telegramChecked || emailChecked || whatsappChecked) {
+                clearFieldError('channels');
+            }
+            
+            // Toggle Telegram field
+            const telegramField = document.getElementById('telegram-field');
+            const telegramInput = document.getElementById('telegram_chat_id');
+            const telegramRequirement = document.getElementById('telegram-requirement');
+            
+            if (telegramChecked) {
+                telegramField.classList.remove('hidden');
+                telegramField.classList.add('required');
+                telegramInput.required = true;
+                
+                // Check if field has a value and show appropriate message
+                if (telegramInput.value) {
+                    if (telegramInput.value === originalUserData.telegram_chat_id) {
+                        telegramRequirement.textContent = '✓ Using saved value';
+                        telegramRequirement.style.color = '#28a745'; // Green
+                    } else {
+                        telegramRequirement.textContent = '(Using your entered value)';
+                        telegramRequirement.style.color = '#17a2b8'; // Blue
+                    }
+                } else {
+                    telegramRequirement.textContent = '(Required for Telegram notifications)';
+                    telegramRequirement.style.color = '#667eea'; // Default
+                }
+            } else {
+                telegramField.classList.add('hidden');
+                telegramField.classList.remove('required');
+                telegramInput.required = false;
+                telegramRequirement.textContent = '';
+                clearFieldError('telegram');
+            }
+            
+            // Toggle Email field  
+            const emailField = document.getElementById('email-field');
+            const emailInput = document.getElementById('email');
+            const emailRequirement = document.getElementById('email-requirement');
+            
+            if (emailChecked) {
+                emailField.classList.remove('hidden');
+                emailField.classList.add('required');
+                emailInput.required = true;
+                
+                // Check if field has a value and show appropriate message
+                if (emailInput.value) {
+                    if (emailInput.value === originalUserData.email) {
+                        emailRequirement.textContent = '✓ Using saved value';
+                        emailRequirement.style.color = '#28a745'; // Green
+                    } else {
+                        emailRequirement.textContent = '(Using your entered value)';
+                        emailRequirement.style.color = '#17a2b8'; // Blue
+                    }
+                } else {
+                    emailRequirement.textContent = '(Required for Email notifications)';
+                    emailRequirement.style.color = '#667eea'; // Default
+                }
+            } else {
+                emailField.classList.add('hidden');
+                emailField.classList.remove('required');
+                emailInput.required = false;
+                emailRequirement.textContent = '';
+                clearFieldError('email');
+            }
+            
+            // Toggle WhatsApp field
+            const whatsappField = document.getElementById('whatsapp-field');
+            const whatsappInput = document.getElementById('whatsapp');
+            const whatsappRequirement = document.getElementById('whatsapp-requirement');
+            
+            if (whatsappChecked) {
+                whatsappField.classList.remove('hidden');
+                whatsappField.classList.add('required');
+                whatsappInput.required = true;
+                
+                // Check if field has a value and show appropriate message
+                if (whatsappInput.value) {
+                    if (whatsappInput.value === originalUserData.whatsapp) {
+                        whatsappRequirement.textContent = '✓ Using saved value';
+                        whatsappRequirement.style.color = '#28a745'; // Green
+                    } else {
+                        whatsappRequirement.textContent = '(Using your entered value)';
+                        whatsappRequirement.style.color = '#17a2b8'; // Blue
+                    }
+                } else {
+                    whatsappRequirement.textContent = '(Required for WhatsApp notifications)';
+                    whatsappRequirement.style.color = '#667eea'; // Default
+                }
+            } else {
+                whatsappField.classList.add('hidden');
+                whatsappField.classList.remove('required');
+                whatsappInput.required = false;
+                whatsappRequirement.textContent = '';
+                clearFieldError('whatsapp');
+            }
+        }
+
+        // Function to validate conditional fields
+        function validateConditionalFields() {
+            let isValid = true;
+            
+            // Clear all previous errors
+            clearFieldError('telegram');
+            clearFieldError('email');
+            clearFieldError('whatsapp');
+            clearFieldError('channels');
+            
+            // First check if at least one notification channel is selected
+            const selectedChannels = document.querySelectorAll('input[name="channels"]:checked');
+            if (selectedChannels.length === 0) {
+                showFieldError('channels', 'Please select at least one notification channel');
+                isValid = false;
+                return isValid; // Return early if no channels selected
+            }
+            
+            // Validate Telegram
+            if (document.getElementById('channel-telegram').checked) {
+                const telegramValue = document.getElementById('telegram_chat_id').value.trim();
+                if (!telegramValue) {
+                    showFieldError('telegram', 'Telegram Chat ID is required when Telegram channel is selected');
+                    isValid = false;
+                }
+            }
+            
+            // Validate Email
+            if (document.getElementById('channel-email').checked) {
+                const emailValue = document.getElementById('email').value.trim();
+                if (!emailValue) {
+                    showFieldError('email', 'Email address is required when Email channel is selected');
+                    isValid = false;
+                } else if (!isValidEmail(emailValue)) {
+                    showFieldError('email', 'Please enter a valid email address');
+                    isValid = false;
+                }
+            }
+            
+            // Validate WhatsApp
+            if (document.getElementById('channel-whatsapp').checked) {
+                const whatsappValue = document.getElementById('whatsapp').value.trim();
+                if (!whatsappValue) {
+                    showFieldError('whatsapp', 'WhatsApp number is required when WhatsApp channel is selected');
+                    isValid = false;
+                }
+            }
+            
+            return isValid;
+        }
+
+        function showFieldError(fieldType, message) {
+            if (fieldType === 'channels') {
+                // For channels, show error below the checkbox group
+                const checkboxGroup = document.querySelector('.checkbox-group');
+                let errorDiv = document.getElementById('channels-error');
+                
+                if (!errorDiv) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.id = 'channels-error';
+                    errorDiv.className = 'error-message';
+                    checkboxGroup.parentNode.appendChild(errorDiv);
+                }
+                
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+                errorDiv.style.color = '#dc3545';
+                errorDiv.style.fontSize = '12px';
+                errorDiv.style.marginTop = '5px';
+            } else {
+                const input = document.getElementById(fieldType + (fieldType === 'telegram' ? '_chat_id' : ''));
+                const errorDiv = document.getElementById(fieldType + '-error');
+                
+                input.classList.add('validation-error');
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        function clearFieldError(fieldType) {
+            if (fieldType === 'channels') {
+                const errorDiv = document.getElementById('channels-error');
+                if (errorDiv) {
+                    errorDiv.textContent = '';
+                    errorDiv.style.display = 'none';
+                }
+            } else {
+                const input = document.getElementById(fieldType + (fieldType === 'telegram' ? '_chat_id' : ''));
+                const errorDiv = document.getElementById(fieldType + '-error');
+                
+                input.classList.remove('validation-error');
+                errorDiv.textContent = '';
+                errorDiv.style.display = 'none';
+            }
+        }
+
+        function isValidEmail(email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailRegex.test(email);
         }
 
         async function loadStats() {
@@ -445,6 +767,68 @@
             } catch (error) {
                 showStatus('Error loading users: ' + error.message, 'error');
             }
+        }
+
+        function translateCronSchedule(cronSchedule, timezone) {
+            if (!cronSchedule) return 'Not set';
+            
+            const parts = cronSchedule.split(' ');
+            if (parts.length !== 5) return cronSchedule; // Invalid format, return as-is
+            
+            const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+            
+            // Helper functions
+            const formatHours = (hourStr) => {
+                if (hourStr === '*') return 'every hour';
+                const hours = hourStr.split(',').map(h => {
+                    const num = parseInt(h);
+                    if (num === 0) return '12:00 AM';
+                    if (num < 12) return `${num}:00 AM`;
+                    if (num === 12) return '12:00 PM';
+                    return `${num - 12}:00 PM`;
+                });
+                return hours.join(' and ');
+            };
+            
+            const formatDaysOfWeek = (dayStr) => {
+                if (dayStr === '*') return 'every day';
+                const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const days = dayStr.split(',').map(d => {
+                    const num = parseInt(d);
+                    return dayNames[num] || `Day ${num}`;
+                });
+                
+                if (days.length === 7) return 'every day';
+                if (days.length === 5 && !days.includes('Saturday') && !days.includes('Sunday')) {
+                    return 'weekdays (Monday-Friday)';
+                }
+                if (days.length === 2 && days.includes('Saturday') && days.includes('Sunday')) {
+                    return 'weekends';
+                }
+                
+                return days.join(', ');
+            };
+            
+            const formatFrequency = (dayOfMonth, month) => {
+                if (dayOfMonth === '*' && month === '*') return '';
+                if (dayOfMonth !== '*') return ` on day ${dayOfMonth} of the month`;
+                if (month !== '*') return ` in month ${month}`;
+                return '';
+            };
+            
+            // Build the natural language description
+            const timeDescription = formatHours(hour);
+            const dayDescription = formatDaysOfWeek(dayOfWeek);
+            const frequencyDescription = formatFrequency(dayOfMonth, month);
+            
+            let description = `${timeDescription} on ${dayDescription}${frequencyDescription}`;
+            
+            // Add timezone if provided
+            if (timezone && timezone !== 'UTC') {
+                description += ` (${timezone} time)`;
+            }
+            
+            return description.charAt(0).toUpperCase() + description.slice(1);
         }
 
         function displayUsers(users) {
@@ -501,6 +885,12 @@
                             </div>
                         </div>
                         <div class="detail-row">
+                            <span class="detail-label">🤖 AI Analysis:</span>
+                            <div class="detail-value">
+                                ${user.enableAIAnalysis !== false ? '✅ Enabled' : '❌ Disabled'}
+                            </div>
+                        </div>
+                        <div class="detail-row">
                             <span class="detail-label">🔗 Status:</span>
                             <div class="detail-value">
                                 Telegram: ${user.hasValidTelegramId ? '✅' : '❌'}
@@ -524,10 +914,12 @@
 
         function openAddUserModal() {
             currentEditingUser = null;
+            originalUserData = {}; // Clear original data for new user
             document.getElementById('modal-title').textContent = 'Add New User';
             document.getElementById('save-btn').textContent = 'Add User';
             resetForm();
             document.getElementById('userModal').style.display = 'block';
+            toggleConditionalFields(); // Initialize field visibility
         }
 
         async function editUser(userName) {
@@ -536,10 +928,44 @@
                 const data = await response.json();
                 if (data.status === 'success') {
                     currentEditingUser = data.user;
+                    
+                    // Store ALL original values FIRST before populating form
+                    originalUserData = {
+                        telegram_chat_id: data.user.telegram_chat_id,
+                        email: data.user.email,
+                        whatsapp: data.user.whatsapp,
+                        originalChannels: [...data.user.channels]
+                    };
+                    
+                    console.log('Original user data stored:', originalUserData); // Debug log
+                    
                     document.getElementById('modal-title').textContent = 'Edit User: ' + userName;
                     document.getElementById('save-btn').textContent = 'Update User';
-                    populateForm(data.user);
+                    
+                    // Show modal first
                     document.getElementById('userModal').style.display = 'block';
+                    
+                    // Populate form
+                    populateForm(data.user);
+                    
+                    // Toggle fields after populating to ensure proper validation state
+                    setTimeout(() => {
+                        toggleConditionalFields();
+                        
+                        // Force a final population to ensure values are definitely there
+                        setTimeout(() => {
+                            if (data.user.channels.includes('telegram') && data.user.telegram_chat_id) {
+                                document.getElementById('telegram_chat_id').value = data.user.telegram_chat_id;
+                            }
+                            if (data.user.channels.includes('email') && data.user.email) {
+                                document.getElementById('email').value = data.user.email;
+                            }
+                            if (data.user.channels.includes('whatsapp') && data.user.whatsapp) {
+                                document.getElementById('whatsapp').value = data.user.whatsapp;
+                            }
+                            console.log('Final field check completed');
+                        }, 50);
+                    }, 200);
                 } else {
                     showStatus('Failed to load user data: ' + data.message, 'error');
                 }
@@ -549,15 +975,16 @@
         }
 
         function populateForm(user) {
+            console.log('Populating form with user:', user); // Debug log
+            console.log('Original data available:', originalUserData); // Debug log
+            
             document.getElementById('name').value = user.name;
             document.getElementById('locations').value = user.locations.join('\n');
-            document.getElementById('telegram_chat_id').value = user.telegram_chat_id || '';
-            document.getElementById('email').value = user.email || '';
-            document.getElementById('whatsapp').value = user.whatsapp || '';
-            document.getElementById('schedule').value = user.schedule || '0 7 * * *';
-            document.getElementById('timezone').value = user.timezone || 'UTC';
             
-            // Set channels
+            document.getElementById('schedule').value = user.schedule || '0 7 * * *';
+            document.getElementById('timezone').value = user.timezone || 'Europe/Berlin';
+            
+            // Set channels FIRST
             document.querySelectorAll('input[name="channels"]').forEach(checkbox => {
                 checkbox.checked = user.channels.includes(checkbox.value);
             });
@@ -566,21 +993,55 @@
             document.querySelectorAll('input[name="forecastDays"]').forEach(checkbox => {
                 checkbox.checked = (user.forecastDays || []).includes(checkbox.value);
             });
+            
+            // Set AI analysis setting (default to enabled for existing users if not specified)
+            document.getElementById('enable-ai-analysis').checked = user.enableAIAnalysis !== false;
+            
+            // IMPORTANT: Populate contact fields AFTER setting channels
+            // This ensures the fields are properly visible and populated
+            setTimeout(() => {
+                // Force populate ALL contact fields with database values if they exist
+                if (user.telegram_chat_id) {
+                    document.getElementById('telegram_chat_id').value = user.telegram_chat_id;
+                }
+                if (user.email) {
+                    document.getElementById('email').value = user.email;
+                }
+                if (user.whatsapp) {
+                    document.getElementById('whatsapp').value = user.whatsapp;
+                }
+                
+                console.log('Contact fields populated:', {
+                    telegram: document.getElementById('telegram_chat_id').value,
+                    email: document.getElementById('email').value,
+                    whatsapp: document.getElementById('whatsapp').value
+                });
+            }, 100);
         }
 
         function resetForm() {
             document.getElementById('userForm').reset();
             document.getElementById('schedule').value = '0 7 * * *';
-            document.getElementById('timezone').value = 'UTC';
+            document.getElementById('timezone').value = 'Europe/Berlin';
             
             // Set default forecast days (Saturday, Sunday)
             document.getElementById('day-saturday').checked = true;
             document.getElementById('day-sunday').checked = true;
+            
+            // Enable AI analysis by default for new users
+            document.getElementById('enable-ai-analysis').checked = true;
+            
+            // Clear all validation errors
+            clearFieldError('telegram');
+            clearFieldError('email');
+            clearFieldError('whatsapp');
+            clearFieldError('channels');
         }
 
         function closeModal() {
             document.getElementById('userModal').style.display = 'none';
             currentEditingUser = null;
+            originalUserData = {};
         }
 
         // Close modal when clicking outside
@@ -594,6 +1055,12 @@
         document.getElementById('userForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
+            // Validate conditional fields first
+            if (!validateConditionalFields()) {
+                showStatus('Please fill in all required contact information for selected notification channels', 'error');
+                return;
+            }
+            
             const formData = new FormData(this);
             const userData = {
                 name: formData.get('name').trim(),
@@ -603,8 +1070,9 @@
                 email: formData.get('email').trim() || null,
                 whatsapp: formData.get('whatsapp').trim() || null,
                 schedule: formData.get('schedule').trim() || '0 7 * * *',
-                timezone: formData.get('timezone') || 'UTC',
-                forecastDays: Array.from(formData.getAll('forecastDays'))
+                timezone: formData.get('timezone') || 'Europe/Berlin',
+                forecastDays: Array.from(formData.getAll('forecastDays')),
+                enableAIAnalysis: document.getElementById('enable-ai-analysis').checked
             };
 
             try {
@@ -712,66 +1180,28 @@
             showStatus('Data refreshed successfully', 'success');
         }
 
-        function translateCronSchedule(cronSchedule, timezone) {
-            if (!cronSchedule) return 'Not set';
+        function highlightRestoredField(inputElement, requirementElement) {
+            // Add visual feedback for restored values
+            inputElement.classList.add('input-restored');
+            requirementElement.classList.add('restored');
             
-            const parts = cronSchedule.split(' ');
-            if (parts.length !== 5) return cronSchedule; // Invalid format, return as-is
+            // Remove highlight after animation
+            setTimeout(() => {
+                inputElement.classList.remove('input-restored');
+                requirementElement.classList.remove('restored');
+            }, 2000);
+        }
+
+        function highlightUserInput(inputElement, requirementElement) {
+            // Add visual feedback for user-modified values
+            inputElement.classList.add('input-user-modified');
+            requirementElement.classList.add('user-input');
             
-            const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
-            
-            // Helper functions
-            const formatHours = (hourStr) => {
-                if (hourStr === '*') return 'every hour';
-                const hours = hourStr.split(',').map(h => {
-                    const num = parseInt(h);
-                    if (num === 0) return '12:00 AM';
-                    if (num < 12) return `${num}:00 AM`;
-                    if (num === 12) return '12:00 PM';
-                    return `${num - 12}:00 PM`;
-                });
-                return hours.join(' and ');
-            };
-            
-            const formatDaysOfWeek = (dayStr) => {
-                if (dayStr === '*') return 'every day';
-                const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                const days = dayStr.split(',').map(d => {
-                    const num = parseInt(d);
-                    return dayNames[num] || `Day ${num}`;
-                });
-                
-                if (days.length === 7) return 'every day';
-                if (days.length === 5 && !days.includes('Saturday') && !days.includes('Sunday')) {
-                    return 'weekdays (Monday-Friday)';
-                }
-                if (days.length === 2 && days.includes('Saturday') && days.includes('Sunday')) {
-                    return 'weekends';
-                }
-                
-                return days.join(', ');
-            };
-            
-            const formatFrequency = (dayOfMonth, month) => {
-                if (dayOfMonth === '*' && month === '*') return '';
-                if (dayOfMonth !== '*') return ` on day ${dayOfMonth} of the month`;
-                if (month !== '*') return ` in month ${month}`;
-                return '';
-            };
-            
-            // Build the natural language description
-            const timeDescription = formatHours(hour);
-            const dayDescription = formatDaysOfWeek(dayOfWeek);
-            const frequencyDescription = formatFrequency(dayOfMonth, month);
-            
-            let description = `${timeDescription} on ${dayDescription}${frequencyDescription}`;
-            
-            // Add timezone if provided
-            if (timezone && timezone !== 'UTC') {
-                description += ` (${timezone} time)`;
-            }
-            
-            return description.charAt(0).toUpperCase() + description.slice(1);
+            // Remove highlight after animation
+            setTimeout(() => {
+                inputElement.classList.remove('input-user-modified');
+                requirementElement.classList.remove('user-input');
+            }, 2000);
         }
     </script>
 </body>
