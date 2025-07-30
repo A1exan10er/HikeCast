@@ -30,6 +30,22 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
   - Dynamic scheduling system respects individual user preferences
   - Intelligent grouping of users by check intervals for efficiency
 
+### 🧹 Code Quality & Maintenance (July 2025)
+- **🔄 Duplicate Code Removal**: Major codebase cleanup completed
+  - Removed 741 duplicate lines from `index.js` (28.7% size reduction)
+  - Eliminated duplicated Express server setup and API endpoints
+  - Removed redundant duplicate user management and test endpoints
+  - Improved code maintainability and reduced potential for bugs
+- **✅ File Integrity Verification**: All core files validated
+  - `index.js`: Cleaned from 2,578 to 1,837 lines
+  - `database.js`: Verified clean (425 lines)
+  - `views/dashboard.html`: Verified clean (1,439 lines)
+- **🛠️ Automated Cleanup Tools**: Python scripts for duplicate detection
+  - Intelligent pattern recognition for duplicate code sections
+  - Safe removal with syntax validation
+  - Preserved all essential functionality during cleanup
+  - Tools moved to `/tools/` folder for better project organization
+
 ## ✨ Features
 
 ### 🎛️ User Management Dashboard (NEW!)
@@ -447,6 +463,12 @@ DB_PATH=hikecast.db  # Custom database file path
 | `/database/stats` | GET | Get database statistics |
 | `/database/backup` | POST | Create database backup |
 
+### WhatsApp Integration
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/webhook` | GET | WhatsApp webhook verification |
+| `/webhook` | POST | WhatsApp webhook for incoming messages |
+
 ### Testing & Debugging
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -665,6 +687,11 @@ HikeCast/
 │   ├── test_extreme_weather_ai.js  # AI weather detection tests
 │   ├── test_configurable_extreme_weather.js  # Configurable alerts tests
 │   └── quick_test.js               # Quick verification test
+├── tools/                          # Development and maintenance tools
+│   ├── README.md                   # Tool documentation
+│   ├── remove_duplicates.py        # Automated duplicate code removal
+│   ├── check_database.py           # Database file duplicate analysis
+│   └── check_dashboard.py          # Dashboard file duplicate analysis
 ├── index.js                       # Main application file (now cleaner!)
 ├── database.js                    # SQLite database management
 ├── hikecast.db                    # SQLite database (auto-created)
