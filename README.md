@@ -20,6 +20,10 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
 - **📊 API Response Enhancement**: Completed API data consistency
   - Added enableAIAnalysis field to all user API responses
   - Improved data integrity between frontend and backend
+- **🚨 Optional AI for Extreme Weather**: User-controlled AI analysis for safety alerts
+  - Extreme weather alerts now respect individual user AI analysis preferences
+  - Users who disable AI analysis receive basic safety assessments instead
+  - Maintains critical safety information regardless of AI preference
 
 ## ✨ Features
 
@@ -50,7 +54,8 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
 - **Automatic Monitoring**: Continuous monitoring for dangerous weather conditions
 - **Real-Time Alerts**: Immediate notifications for extreme weather events
 - **Safety Prioritized**: Critical alerts sent to all channels regardless of user preferences
-- **AI Safety Analysis**: Gemini AI provides emergency safety recommendations
+- **Optional AI Safety Analysis**: Respects individual user AI analysis preferences
+- **Basic Safety Fallback**: Users with AI disabled receive essential safety information
 
 ### 📱 Multi-Channel Notifications
 - **Telegram**: Real-time notifications with Markdown formatting
@@ -218,10 +223,13 @@ GET /dashboard
 - **Automatic Detection**: Checks every 2 hours
 - **Immediate Notifications**: Critical alerts sent instantly
 - **Multi-Day Analysis**: Patterns and consecutive extreme days
-- **AI Safety Guidance**: Emergency preparedness recommendations
+- **User-Controlled AI Analysis**: Respects individual AI analysis preferences
+- **Basic Safety Fallback**: Essential safety information for users with AI disabled
 - **Override User Preferences**: Critical alerts sent to all channels
 
 ### Sample Extreme Weather Alert
+
+**With AI Analysis Enabled:**
 ```
 🚨 EXTREME WEATHER ALERT 🚨
 📍 Location: Stuttgart, Germany
@@ -234,6 +242,25 @@ GET /dashboard
 🤖 AI Safety Analysis:
 IMMEDIATE ACTION REQUIRED: Seek indoor shelter immediately. 
 This thunderstorm poses serious risk of lightning strikes and flash flooding...
+
+⚠️ SAFETY RECOMMENDATIONS:
+• Cancel all outdoor activities
+• Stay indoors and monitor weather updates
+• Prepare emergency supplies
+• Avoid travel unless absolutely necessary
+```
+
+**With AI Analysis Disabled:**
+```
+🚨 EXTREME WEATHER ALERT 🚨
+📍 Location: Stuttgart, Germany
+⏰ Alert Time: Dec 15, 2024, 3:30 PM
+
+🔴 CRITICAL ALERTS:
+• 🌊 EXTREME RAIN WARNING Tomorrow: 65mm expected - Flash flood risk
+• ⚠️ DANGEROUS CONDITIONS Tomorrow: Thunderstorm with heavy hail - Hiking PROHIBITED
+
+📊 Safety Assessment: Extreme weather conditions detected. Follow safety recommendations below.
 
 ⚠️ SAFETY RECOMMENDATIONS:
 • Cancel all outdoor activities
@@ -681,6 +708,7 @@ const EXTREME_WEATHER_THRESHOLDS = {
 - **Message Length**: Long messages automatically split
 - **Environment Variables**: Use `/debug` to verify configuration
 - **AI Analysis Toggle**: If AI analysis doesn't toggle properly, ensure the database includes the `enable_ai_analysis` column
+- **Extreme Weather AI**: Extreme weather alerts respect individual user AI analysis preferences (enabled/disabled)
 - **Notification Channel Validation**: Select at least one notification channel and provide required contact information
 - **Form Validation**: Clear specific error messages are shown for missing required fields based on selected channels
 

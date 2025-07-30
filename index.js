@@ -797,12 +797,23 @@ async function sendExtremeWeatherAlert(user, location, geo, alerts) {
     message += `\n`;
   }
   
-  // Add AI analysis for extreme weather
-  const firstAlert = alerts[0];
-  const geminiAnalysis = await analyzeExtremeWeatherWithGemini(alerts, location);
-  
-  if (geminiAnalysis) {
-    message += `🤖 **AI Safety Analysis**:\n${geminiAnalysis}\n\n`;
+  // Add AI analysis for extreme weather only if user has it enabled
+  if (user.enableAIAnalysis !== false) {
+    try {
+      const geminiAnalysis = await analyzeExtremeWeatherWithGemini(alerts, location);
+      
+      if (geminiAnalysis) {
+        message += `🤖 **AI Safety Analysis**:\n${geminiAnalysis}\n\n`;
+      } else {
+        message += `📊 **Basic Safety Assessment**: Weather conditions pose significant risk. Follow safety recommendations below.\n\n`;
+      }
+    } catch (error) {
+      console.error(`Gemini extreme weather analysis failed:`, error.message);
+      message += `📊 **Basic Safety Assessment**: Weather conditions pose significant risk. Follow safety recommendations below.\n\n`;
+    }
+  } else {
+    // User has disabled AI analysis, show basic assessment only
+    message += `📊 **Safety Assessment**: Extreme weather conditions detected. Follow safety recommendations below.\n\n`;
   }
   
   message += `⚠️ **SAFETY RECOMMENDATIONS**:\n`;
