@@ -24,6 +24,11 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
   - Extreme weather alerts now respect individual user AI analysis preferences
   - Users who disable AI analysis receive basic safety assessments instead
   - Maintains critical safety information regardless of AI preference
+- **⚙️ Configurable Extreme Weather Alerts**: User-controlled alert system
+  - Users can enable/disable extreme weather alerts individually
+  - Customizable check intervals with cron-based scheduling
+  - Dynamic scheduling system respects individual user preferences
+  - Intelligent grouping of users by check intervals for efficiency
 
 ## ✨ Features
 
@@ -153,7 +158,9 @@ Content-Type: application/json
   "schedule": "0 7 * * 6,0",
   "timezone": "Europe/Berlin",
   "forecastDays": ["Saturday", "Sunday"],
-  "enableAIAnalysis": true
+  "enableAIAnalysis": true,
+  "enableExtremeWeatherAlerts": true,
+  "extremeWeatherCheckInterval": "0 */2 * * *"
 }
 
 # Update user
@@ -197,6 +204,8 @@ GET /dashboard
     "timezone": "Europe/Berlin",
     "forecastDays": ["Saturday", "Sunday"],
     "enableAIAnalysis": true,
+    "enableExtremeWeatherAlerts": true,
+    "extremeWeatherCheckInterval": "0 */2 * * *",
     "created_at": "2024-01-01T00:00:00.000Z",
     "updated_at": "2024-01-01T00:00:00.000Z"
   }
@@ -220,7 +229,10 @@ GET /dashboard
 - Heat/Cold waves (3+ consecutive days)
 
 ### Alert Features
-- **Automatic Detection**: Checks every 2 hours
+- **User-Configurable**: Enable/disable alerts per user with custom check intervals
+- **Flexible Scheduling**: Cron-based intervals (hourly, daily, every 2 hours, etc.)
+- **Intelligent Grouping**: Users with same intervals share scheduled tasks
+- **Automatic Detection**: Configurable check frequency based on user preferences
 - **Immediate Notifications**: Critical alerts sent instantly
 - **Multi-Day Analysis**: Patterns and consecutive extreme days
 - **User-Controlled AI Analysis**: Respects individual AI analysis preferences
@@ -268,6 +280,41 @@ This thunderstorm poses serious risk of lightning strikes and flash flooding...
 • Prepare emergency supplies
 • Avoid travel unless absolutely necessary
 ```
+
+### Extreme Weather Configuration
+
+**User Preferences:**
+- `enableExtremeWeatherAlerts`: Boolean to enable/disable alerts per user
+- `extremeWeatherCheckInterval`: Cron expression defining check frequency
+
+**Common Check Intervals:**
+```bash
+"0 * * * *"        # Every hour
+"0 */2 * * *"      # Every 2 hours (default)
+"0 */4 * * *"      # Every 4 hours
+"0 8,20 * * *"     # Twice daily (8 AM and 8 PM)
+"0 8 * * *"        # Once daily at 8 AM
+"*/30 * * * *"     # Every 30 minutes (high frequency)
+```
+
+**Configuration Examples:**
+```json
+{
+  "enableExtremeWeatherAlerts": true,
+  "extremeWeatherCheckInterval": "0 * * * *"  // Hourly checks
+}
+
+{
+  "enableExtremeWeatherAlerts": false,  // Disabled - no checks performed
+  "extremeWeatherCheckInterval": "0 */2 * * *"  // Ignored when disabled
+}
+```
+
+**System Behavior:**
+- Users with disabled alerts are excluded from all extreme weather processing
+- Users with same intervals are grouped into shared scheduled tasks
+- Invalid cron expressions default to "0 */2 * * *" (every 2 hours)
+- System dynamically reschedules when user preferences change
 
 ## 🚀 Quick Start
 
@@ -637,6 +684,8 @@ CREATE TABLE users (
   timezone TEXT DEFAULT 'UTC',
   forecast_days TEXT,               -- JSON array
   enable_ai_analysis INTEGER DEFAULT 1,  -- AI analysis toggle (1=enabled, 0=disabled)
+  enable_extreme_weather_alerts INTEGER DEFAULT 1,  -- Extreme weather alerts toggle (1=enabled, 0=disabled)
+  extreme_weather_check_interval TEXT DEFAULT '0 */2 * * *',  -- Cron expression for check frequency
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -709,6 +758,9 @@ const EXTREME_WEATHER_THRESHOLDS = {
 - **Environment Variables**: Use `/debug` to verify configuration
 - **AI Analysis Toggle**: If AI analysis doesn't toggle properly, ensure the database includes the `enable_ai_analysis` column
 - **Extreme Weather AI**: Extreme weather alerts respect individual user AI analysis preferences (enabled/disabled)
+- **Extreme Weather Configuration**: Users can enable/disable alerts and set custom check intervals using valid cron expressions
+- **Check Interval Validation**: Invalid cron expressions will be rejected; use standard cron format (e.g., "0 */2 * * *")
+- **Dynamic Scheduling**: System automatically reschedules extreme weather checks when user preferences change
 - **Notification Channel Validation**: Select at least one notification channel and provide required contact information
 - **Form Validation**: Clear specific error messages are shown for missing required fields based on selected channels
 

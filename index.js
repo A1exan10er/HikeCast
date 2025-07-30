@@ -68,6 +68,10 @@ function validateUserData(userData) {
     errors.push('Invalid cron schedule format');
   }
   
+  if (userData.extremeWeatherCheckInterval && !cron.validate(userData.extremeWeatherCheckInterval)) {
+    errors.push('Invalid extreme weather check interval (must be valid cron format)');
+  }
+  
   return errors;
 }
 
@@ -897,19 +901,22 @@ async function getExtendedWeather(location) {
   return { geo, weather: response.data };
 }
 
-// Check and send extreme weather alerts for all users
-async function checkExtremeWeatherForAllUsers() {
+// Check and send extreme weather alerts for users who have enabled them
+async function checkExtremeWeatherForEnabledUsers() {
   try {
-    console.log('🔍 Starting extreme weather check for all users...');
-    const users = await loadUsers(); // Fixed: Added await
-    console.log(`Checking extreme weather for ${users.length} users`);
+    console.log('🔍 Starting extreme weather check for enabled users...');
+    const users = await loadUsers();
     
-    if (users.length === 0) {
-      console.log('No users found for extreme weather check');
+    // Filter users who have extreme weather alerts enabled
+    const enabledUsers = users.filter(user => user.enableExtremeWeatherAlerts !== false);
+    console.log(`Checking extreme weather for ${enabledUsers.length} of ${users.length} users with alerts enabled`);
+    
+    if (enabledUsers.length === 0) {
+      console.log('No users have extreme weather alerts enabled');
       return;
     }
     
-    for (const user of users) {
+    for (const user of enabledUsers) {
       for (const location of user.locations) {
         try {
           console.log(`Checking extreme weather for ${user.name} at ${location}`);
@@ -927,9 +934,9 @@ async function checkExtremeWeatherForAllUsers() {
         }
       }
     }
-    console.log('✅ Extreme weather check completed for all users');
+    console.log('✅ Extreme weather check completed for enabled users');
   } catch (error) {
-    console.error('❌ Error in checkExtremeWeatherForAllUsers:', error.message);
+    console.error('❌ Error in checkExtremeWeatherForEnabledUsers:', error.message);
     throw error;
   }
 }
@@ -956,15 +963,103 @@ async function scheduleNotifications() {
   }
 }
 
-// Schedule extreme weather checks every 2 hours
-function scheduleExtremeWeatherChecks() {
-  cron.schedule('0 */2 * * *', () => {
-    console.log(`[${new Date().toISOString()}] Running extreme weather check`);
-    checkExtremeWeatherForAllUsers()
-      .then(() => console.log(`[${new Date().toISOString()}] Extreme weather check completed`))
-      .catch(err => console.error(`[${new Date().toISOString()}] Error in extreme weather check:`, err));
-  });
-  console.log('Scheduled extreme weather checks every 2 hours');
+// Store active extreme weather schedules
+const activeExtremeWeatherSchedules = new Map();
+
+// Schedule extreme weather checks based on user preferences
+async function scheduleExtremeWeatherChecks() {
+  try {
+    // Clear existing schedules
+    activeExtremeWeatherSchedules.forEach((task, interval) => {
+      if (task) {
+        task.stop();
+      }
+    });
+    activeExtremeWeatherSchedules.clear();
+    
+    const users = await loadUsers();
+    const enabledUsers = users.filter(user => user.enableExtremeWeatherAlerts !== false);
+    
+    if (enabledUsers.length === 0) {
+      console.log('No users have extreme weather alerts enabled');
+      return;
+    }
+    
+    // Group users by their check interval preferences
+    const intervalGroups = new Map();
+    enabledUsers.forEach(user => {
+      const interval = user.extremeWeatherCheckInterval || '0 */2 * * *';
+      if (!intervalGroups.has(interval)) {
+        intervalGroups.set(interval, []);
+      }
+      intervalGroups.get(interval).push(user);
+    });
+    
+    // Create scheduled tasks for each unique interval
+    intervalGroups.forEach((usersWithInterval, interval) => {
+      if (!cron.validate(interval)) {
+        console.error(`Invalid cron expression for extreme weather check: ${interval}`);
+        return;
+      }
+      
+      console.log(`Scheduling extreme weather checks for ${usersWithInterval.length} users with interval: ${interval}`);
+      
+      const task = cron.schedule(interval, async () => {
+        console.log(`[${new Date().toISOString()}] Running extreme weather check for interval: ${interval}`);
+        try {
+          await checkSpecificUsersExtremeWeather(usersWithInterval);
+          console.log(`[${new Date().toISOString()}] Extreme weather check completed for interval: ${interval}`);
+        } catch (error) {
+          console.error(`[${new Date().toISOString()}] Error in extreme weather check for interval ${interval}:`, error);
+        }
+      }, {
+        scheduled: false // Don't start immediately
+      });
+      
+      task.start();
+      activeExtremeWeatherSchedules.set(interval, task);
+    });
+    
+    console.log(`Scheduled extreme weather checks for ${intervalGroups.size} different intervals`);
+  } catch (error) {
+    console.error('Error scheduling extreme weather checks:', error);
+  }
+}
+
+// Check extreme weather for specific users
+async function checkSpecificUsersExtremeWeather(users) {
+  try {
+    console.log(`🔍 Starting extreme weather check for ${users.length} specific users...`);
+    
+    for (const user of users) {
+      // Double-check that user still has alerts enabled
+      if (user.enableExtremeWeatherAlerts === false) {
+        console.log(`Skipping ${user.name} - extreme weather alerts disabled`);
+        continue;
+      }
+      
+      for (const location of user.locations) {
+        try {
+          console.log(`Checking extreme weather for ${user.name} at ${location}`);
+          const { geo, weather } = await getExtendedWeather(location);
+          const alerts = analyzeExtremeWeather(weather, location);
+          
+          if (alerts.length > 0) {
+            console.log(`⚠️ Found ${alerts.length} extreme weather alerts for ${user.name} at ${location}`);
+            await sendExtremeWeatherAlert(user, location, geo, alerts);
+          } else {
+            console.log(`✅ No extreme weather alerts for ${user.name} at ${location}`);
+          }
+        } catch (error) {
+          console.error(`❌ Error checking extreme weather for ${user.name} at ${location}:`, error.message);
+        }
+      }
+    }
+    console.log('✅ Extreme weather check completed for specific users');
+  } catch (error) {
+    console.error('❌ Error in checkSpecificUsersExtremeWeather:', error.message);
+    throw error;
+  }
 }
 
 // Start Express server
@@ -1012,6 +1107,10 @@ app.get('/users', async (req, res) => {
       timezone: user.timezone,
       forecastDays: user.forecastDays,
       enableAIAnalysis: user.enableAIAnalysis,
+        enableExtremeWeatherAlerts: user.enableExtremeWeatherAlerts,
+        extremeWeatherCheckInterval: user.extremeWeatherCheckInterval,
+      enableExtremeWeatherAlerts: user.enableExtremeWeatherAlerts,
+      extremeWeatherCheckInterval: user.extremeWeatherCheckInterval,
       hasValidTelegramId: !!user.telegram_chat_id,
       hasValidEmail: !!user.email,
       hasValidWhatsApp: !!user.whatsapp,
@@ -1052,8 +1151,12 @@ app.get('/users/:identifier', async (req, res) => {
       channels: user.channels,
       schedule: user.schedule,
       timezone: user.timezone,
+      enableExtremeWeatherAlerts: user.enableExtremeWeatherAlerts,
+      extremeWeatherCheckInterval: user.extremeWeatherCheckInterval,
       forecastDays: user.forecastDays,
       enableAIAnalysis: user.enableAIAnalysis,
+        enableExtremeWeatherAlerts: user.enableExtremeWeatherAlerts,
+        extremeWeatherCheckInterval: user.extremeWeatherCheckInterval,
       hasValidTelegramId: !!user.telegram_chat_id,
       hasValidEmail: !!user.email,
       hasValidWhatsApp: !!user.whatsapp,
@@ -1112,8 +1215,9 @@ app.post('/users', async (req, res) => {
     
     const newUser = await db.addUser(userData);
     
-    // Reschedule notifications to include new user
+    // Reschedule notifications and extreme weather checks to include new user
     await scheduleNotifications();
+    await scheduleExtremeWeatherChecks();
     
     res.status(201).json({
       status: 'success',
@@ -1167,6 +1271,7 @@ app.put('/users/:identifier', async (req, res) => {
     
     // Reschedule notifications with updated user data
     await scheduleNotifications();
+    await scheduleExtremeWeatherChecks();
     
     res.json({
       status: 'success',
@@ -1205,6 +1310,7 @@ app.delete('/users/:identifier', async (req, res) => {
     
     // Reschedule notifications without deleted user
     await scheduleNotifications();
+    await scheduleExtremeWeatherChecks();
     
     res.json({
       status: 'success',
@@ -1344,10 +1450,10 @@ app.post('/webhook', express.json(), (req, res) => {
 // Add new API endpoint for manual extreme weather check
 app.get('/check-extreme-weather', async (req, res) => {
   try {
-    await checkExtremeWeatherForAllUsers();
+    await checkExtremeWeatherForEnabledUsers();
     res.json({ 
       status: 'success', 
-      message: 'Extreme weather check completed',
+      message: 'Extreme weather check completed for enabled users',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -1397,6 +1503,8 @@ app.get('/debug', async (req, res) => {
         timezone: user.timezone,
         forecastDays: user.forecastDays,
       enableAIAnalysis: user.enableAIAnalysis,
+        enableExtremeWeatherAlerts: user.enableExtremeWeatherAlerts,
+        extremeWeatherCheckInterval: user.extremeWeatherCheckInterval,
         created_at: user.created_at,
         updated_at: user.updated_at
       }))
@@ -1425,6 +1533,7 @@ app.listen(PORT, async () => {
     
     // Schedule notifications and extreme weather checks
     await scheduleNotifications();
+    await scheduleExtremeWeatherChecks();
     scheduleExtremeWeatherChecks();
     
     // Send notification to all users immediately at deployment
@@ -1449,8 +1558,8 @@ app.listen(PORT, async () => {
     console.log('Deployment notifications completed.');
     
     // Check for extreme weather on startup
-    console.log('Starting initial extreme weather check...');
-    await checkExtremeWeatherForAllUsers();
+    console.log('Starting initial extreme weather check for enabled users...');
+    await checkExtremeWeatherForEnabledUsers();
     console.log('Initial extreme weather check completed.');
     
   } catch (err) {
@@ -1765,6 +1874,8 @@ app.get('/users', async (req, res) => {
       timezone: user.timezone,
       forecastDays: user.forecastDays,
       enableAIAnalysis: user.enableAIAnalysis,
+        enableExtremeWeatherAlerts: user.enableExtremeWeatherAlerts,
+        extremeWeatherCheckInterval: user.extremeWeatherCheckInterval,
       hasValidTelegramId: !!user.telegram_chat_id,
       hasValidEmail: !!user.email,
       hasValidWhatsApp: !!user.whatsapp,
@@ -1807,6 +1918,8 @@ app.get('/users/:identifier', async (req, res) => {
       timezone: user.timezone,
       forecastDays: user.forecastDays,
       enableAIAnalysis: user.enableAIAnalysis,
+        enableExtremeWeatherAlerts: user.enableExtremeWeatherAlerts,
+        extremeWeatherCheckInterval: user.extremeWeatherCheckInterval,
       hasValidTelegramId: !!user.telegram_chat_id,
       hasValidEmail: !!user.email,
       hasValidWhatsApp: !!user.whatsapp,
@@ -1865,8 +1978,9 @@ app.post('/users', async (req, res) => {
     
     const newUser = await db.addUser(userData);
     
-    // Reschedule notifications to include new user
+    // Reschedule notifications and extreme weather checks to include new user
     await scheduleNotifications();
+    await scheduleExtremeWeatherChecks();
     
     res.status(201).json({
       status: 'success',
@@ -1920,6 +2034,7 @@ app.put('/users/:identifier', async (req, res) => {
     
     // Reschedule notifications with updated user data
     await scheduleNotifications();
+    await scheduleExtremeWeatherChecks();
     
     res.json({
       status: 'success',
@@ -1958,6 +2073,7 @@ app.delete('/users/:identifier', async (req, res) => {
     
     // Reschedule notifications without deleted user
     await scheduleNotifications();
+    await scheduleExtremeWeatherChecks();
     
     res.json({
       status: 'success',
@@ -2097,10 +2213,10 @@ app.post('/webhook', express.json(), (req, res) => {
 // Add new API endpoint for manual extreme weather check
 app.get('/check-extreme-weather', async (req, res) => {
   try {
-    await checkExtremeWeatherForAllUsers();
+    await checkExtremeWeatherForEnabledUsers();
     res.json({ 
       status: 'success', 
-      message: 'Extreme weather check completed',
+      message: 'Extreme weather check completed for enabled users',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -2150,6 +2266,8 @@ app.get('/debug', async (req, res) => {
         timezone: user.timezone,
         forecastDays: user.forecastDays,
       enableAIAnalysis: user.enableAIAnalysis,
+        enableExtremeWeatherAlerts: user.enableExtremeWeatherAlerts,
+        extremeWeatherCheckInterval: user.extremeWeatherCheckInterval,
         created_at: user.created_at,
         updated_at: user.updated_at
       }))
@@ -2178,6 +2296,7 @@ app.listen(PORT, async () => {
     
     // Schedule notifications and extreme weather checks
     await scheduleNotifications();
+    await scheduleExtremeWeatherChecks();
     scheduleExtremeWeatherChecks();
     
     // Send notification to all users immediately at deployment
@@ -2202,8 +2321,8 @@ app.listen(PORT, async () => {
     console.log('Deployment notifications completed.');
     
     // Check for extreme weather on startup
-    console.log('Starting initial extreme weather check...');
-    await checkExtremeWeatherForAllUsers();
+    console.log('Starting initial extreme weather check for enabled users...');
+    await checkExtremeWeatherForEnabledUsers();
     console.log('Initial extreme weather check completed.');
     
   } catch (err) {

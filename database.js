@@ -19,6 +19,7 @@ class UserDatabase {
         } else {
           console.log('Connected to SQLite database');
           this.createTables()
+            .then(() => this.addMissingColumns())
             .then(resolve)
             .catch(reject);
         }
@@ -42,6 +43,8 @@ class UserDatabase {
           timezone TEXT DEFAULT 'UTC',
           forecast_days TEXT,
           enable_ai_analysis INTEGER DEFAULT 1,
+          enable_extreme_weather_alerts INTEGER DEFAULT 1,
+          extreme_weather_check_interval TEXT DEFAULT '0 */2 * * *',
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
@@ -53,43 +56,73 @@ class UserDatabase {
           reject(err);
         } else {
           console.log('Users table created or verified');
-          // Check if we need to add the new column for existing tables
-          this.addAIAnalysisColumn()
-            .then(() => resolve())
-            .catch(reject);
+          resolve();
         }
       });
     });
   }
 
-  // Add enable_ai_analysis column if it doesn't exist (for existing databases)
-  addAIAnalysisColumn() {
+    // Add enable_ai_analysis and extreme weather columns if they don't exist (for existing databases)
+  async addMissingColumns() {
     return new Promise((resolve, reject) => {
-      // Check if column exists
+      // First check for enable_ai_analysis column
       this.db.all("PRAGMA table_info(users)", (err, rows) => {
         if (err) {
-          console.error('Error checking table structure:', err);
+          console.error('Error checking table info:', err);
           reject(err);
           return;
         }
-        
+
         const hasAIColumn = rows.some(row => row.name === 'enable_ai_analysis');
+        const hasExtremeWeatherColumn = rows.some(row => row.name === 'enable_extreme_weather_alerts');
+        const hasIntervalColumn = rows.some(row => row.name === 'extreme_weather_check_interval');
+
+        let columnsToAdd = [];
         
         if (!hasAIColumn) {
-          console.log('Adding enable_ai_analysis column to existing table...');
-          this.db.run("ALTER TABLE users ADD COLUMN enable_ai_analysis INTEGER DEFAULT 1", (err) => {
+          columnsToAdd.push({
+            name: 'enable_ai_analysis',
+            sql: "ALTER TABLE users ADD COLUMN enable_ai_analysis INTEGER DEFAULT 1"
+          });
+        }
+        
+        if (!hasExtremeWeatherColumn) {
+          columnsToAdd.push({
+            name: 'enable_extreme_weather_alerts',
+            sql: "ALTER TABLE users ADD COLUMN enable_extreme_weather_alerts INTEGER DEFAULT 1"
+          });
+        }
+        
+        if (!hasIntervalColumn) {
+          columnsToAdd.push({
+            name: 'extreme_weather_check_interval',
+            sql: "ALTER TABLE users ADD COLUMN extreme_weather_check_interval TEXT DEFAULT '0 */2 * * *'"
+          });
+        }
+
+        if (columnsToAdd.length === 0) {
+          console.log('All required columns already exist');
+          resolve();
+          return;
+        }
+
+        // Add columns sequentially
+        let addedCount = 0;
+        columnsToAdd.forEach(column => {
+          console.log(`Adding ${column.name} column to existing table...`);
+          this.db.run(column.sql, (err) => {
             if (err) {
-              console.error('Error adding enable_ai_analysis column:', err);
+              console.error(`Error adding ${column.name} column:`, err);
               reject(err);
             } else {
-              console.log('✅ Added enable_ai_analysis column');
-              resolve();
+              console.log(`✅ Added ${column.name} column`);
+              addedCount++;
+              if (addedCount === columnsToAdd.length) {
+                resolve();
+              }
             }
           });
-        } else {
-          console.log('enable_ai_analysis column already exists');
-          resolve();
-        }
+        });
       });
     });
   }
@@ -132,14 +165,16 @@ class UserDatabase {
   addUser(userData) {
     return new Promise((resolve, reject) => {
       const stmt = this.db.prepare(`
-        INSERT INTO users (name, locations, channels, telegram_chat_id, email, whatsapp, schedule, timezone, forecast_days, enable_ai_analysis)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (name, locations, channels, telegram_chat_id, email, whatsapp, schedule, timezone, forecast_days, enable_ai_analysis, enable_extreme_weather_alerts, extreme_weather_check_interval)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const locations = Array.isArray(userData.locations) ? JSON.stringify(userData.locations) : userData.locations;
       const channels = Array.isArray(userData.channels) ? JSON.stringify(userData.channels) : userData.channels;
       const forecastDays = userData.forecastDays ? JSON.stringify(userData.forecastDays) : null;
       const enableAIAnalysis = userData.enableAIAnalysis !== false ? 1 : 0; // Default to enabled
+      const enableExtremeWeatherAlerts = userData.enableExtremeWeatherAlerts !== false ? 1 : 0; // Default to enabled
+      const extremeWeatherCheckInterval = userData.extremeWeatherCheckInterval || '0 */2 * * *'; // Default to every 2 hours
 
       stmt.run([
         userData.name,
@@ -151,7 +186,9 @@ class UserDatabase {
         userData.schedule || '0 7 * * *',
         userData.timezone || 'UTC',
         forecastDays,
-        enableAIAnalysis
+        enableAIAnalysis,
+        enableExtremeWeatherAlerts,
+        extremeWeatherCheckInterval
       ], function(err) {
         if (err) {
           reject(err);
@@ -222,12 +259,15 @@ class UserDatabase {
           const channels = Array.isArray(updatedUser.channels) ? JSON.stringify(updatedUser.channels) : updatedUser.channels;
           const forecastDays = updatedUser.forecastDays ? JSON.stringify(updatedUser.forecastDays) : null;
           const enableAIAnalysis = updatedUser.enableAIAnalysis !== false ? 1 : 0;
+          const enableExtremeWeatherAlerts = updatedUser.enableExtremeWeatherAlerts !== false ? 1 : 0;
+          const extremeWeatherCheckInterval = updatedUser.extremeWeatherCheckInterval || existingUser.extremeWeatherCheckInterval || '0 */2 * * *';
 
           const stmt = this.db.prepare(`
             UPDATE users SET
               name = ?, locations = ?, channels = ?, telegram_chat_id = ?, 
               email = ?, whatsapp = ?, schedule = ?, timezone = ?, 
-              forecast_days = ?, enable_ai_analysis = ?, updated_at = CURRENT_TIMESTAMP
+              forecast_days = ?, enable_ai_analysis = ?, enable_extreme_weather_alerts = ?, 
+              extreme_weather_check_interval = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
           `);
 
@@ -242,6 +282,8 @@ class UserDatabase {
             updatedUser.timezone,
             forecastDays,
             enableAIAnalysis,
+            enableExtremeWeatherAlerts,
+            extremeWeatherCheckInterval,
             currentUser.id
           ], function(err) {
             if (err) {
@@ -305,6 +347,8 @@ class UserDatabase {
       timezone: row.timezone,
       forecastDays: row.forecast_days ? JSON.parse(row.forecast_days) : null,
       enableAIAnalysis: row.enable_ai_analysis !== 0, // Convert from SQLite INTEGER to boolean
+      enableExtremeWeatherAlerts: row.enable_extreme_weather_alerts !== 0, // Convert from SQLite INTEGER to boolean
+      extremeWeatherCheckInterval: row.extreme_weather_check_interval || '0 */2 * * *', // Default fallback
       created_at: row.created_at,
       updated_at: row.updated_at
     };
