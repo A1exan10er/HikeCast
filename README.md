@@ -719,4 +719,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - 🎛️ [User Dashboard](http://localhost:3000/dashboard) - Manage users via web interface
 - 📊 [System Status](http://localhost:3000/debug) - Check configuration and database
 - 🏥 [Health Check](http://localhost:3000/health) - Monitor service uptime
-- 📡 [API Documentation](#api-endpoints) - Full API reference
+- 📡 [API Documentation](#-api-endpoints) - Full API reference
