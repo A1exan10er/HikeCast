@@ -1539,31 +1539,13 @@ app.listen(PORT, async () => {
     await scheduleExtremeWeatherChecks();
     scheduleExtremeWeatherChecks();
     
-    // Send notification to all users immediately at deployment
-    console.log('Starting deployment notifications...');
-    const users = await loadUsers();
-    console.log(`Loaded ${users.length} users from database`);
+    // Deployment notifications disabled - users can use "Test Notification" feature instead
+    console.log('Deployment notifications disabled. Users can test notifications via dashboard.');
+    console.log('Use /test-notify endpoint or dashboard "Test Notification" buttons for testing.');
     
-    if (users.length === 0) {
-      console.warn('No users found in database');
-      return;
-    }
-    
-    for (const user of users) {
-      try {
-        console.log(`Sending notification to ${user.name}`);
-        await notifyUser(user);
-        console.log(`✅ Notification sent to ${user.name}`);
-      } catch (error) {
-        console.error(`❌ Failed to notify ${user.name}:`, error.message);
-      }
-    }
-    console.log('Deployment notifications completed.');
-    
-    // Check for extreme weather on startup
-    console.log('Starting initial extreme weather check for enabled users...');
-    await checkExtremeWeatherForEnabledUsers();
-    console.log('Initial extreme weather check completed.');
+    // Initial extreme weather check disabled on startup - scheduled checks will run normally
+    console.log('Initial extreme weather check disabled on startup.');
+    console.log('Extreme weather monitoring will begin with scheduled intervals.');
     
   } catch (err) {
     console.error('Error in startup process:', err.message);

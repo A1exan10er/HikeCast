@@ -45,6 +45,11 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
   - Safe removal with syntax validation
   - Preserved all essential functionality during cleanup
   - Tools moved to `/tools/` folder for better project organization
+- **🚫 Deployment Notification Control**: Disabled automatic notifications on startup
+  - No automatic messages sent to users after deployment/restart
+  - Users can test notifications manually via dashboard or API endpoints
+  - Prevents unwanted notifications during development and maintenance
+  - Scheduled monitoring continues normally without startup interruptions
 
 ## ✨ Features
 
@@ -592,8 +597,9 @@ Perfect hiking conditions! Clear skies and mild temperatures...
 ## 🔄 Monitoring Schedule
 
 - **Regular Forecasts**: Based on user's cron schedule
-- **Extreme Weather Checks**: Every 2 hours automatically
-- **Startup Check**: Immediate check when service starts
+- **Extreme Weather Checks**: Every 2 hours automatically (starts with first scheduled interval)
+- **Startup Behavior**: No automatic notifications sent on deployment/restart
+- **Manual Testing**: Use dashboard "Test Notification" or `/test-notify` endpoint
 - **Manual Triggers**: Available via API endpoints
 
 ## 🌐 Deployment
@@ -608,6 +614,12 @@ Perfect hiking conditions! Clear skies and mild temperatures...
 3. **Keep Service Warm:**
    - Use UptimeRobot to ping `/health` endpoint every 5 minutes
    - Prevents free tier services from sleeping
+
+### Deployment Behavior
+- **No Automatic Notifications**: The service will NOT send notifications to users upon deployment
+- **Manual Testing**: Use the dashboard "Test Notification" buttons or `/test-notify` endpoint for testing
+- **Scheduled Operations**: Regular forecasts and extreme weather monitoring start automatically
+- **Clean Startup**: Service starts quietly without disturbing users
 
 ### Health Monitoring
 - **Endpoint**: `GET /health`
