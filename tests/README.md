@@ -4,6 +4,19 @@ This folder contains all test scripts for the HikeCast application. Each test fo
 
 ## Test Files
 
+### `verify-refactoring.js`
+**Purpose**: Verification script for the modular architecture refactoring  
+**What it tests**:
+- All service modules import correctly
+- All route modules import correctly  
+- All utility modules import correctly
+- Module function exports are present
+- Database integration works
+- Express routes are properly created
+- Main application structure is correct
+
+**Usage**: `node tests/verify-refactoring.js`
+
 ### `test_form_submission.js`
 **Purpose**: Tests the dashboard form submission for extreme weather settings  
 **What it tests**:
