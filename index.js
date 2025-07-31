@@ -149,6 +149,9 @@ const PORT = process.env.PORT || 3000;
 // Add JSON parsing middleware
 app.use(express.json());
 
+// Serve static files from views directory for CSS and JS assets
+app.use('/assets', express.static(path.join(__dirname, 'views/assets')));
+
 // Basic endpoints
 app.get('/', (req, res) => {
   res.send('HikeCastBot is running and scheduling notifications!');
