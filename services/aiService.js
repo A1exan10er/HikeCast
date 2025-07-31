@@ -17,7 +17,7 @@ async function analyzeWeatherWithGemini(weatherData, location) {
     const weatherDescription = getWeatherDescription(weatherData.weatherCode);
     
     const prompt = `
-Analyze the following weather data for hiking in ${location} and provide specific recommendations:
+Analyze the following weather data for hiking in ${location} and provide balanced, practical recommendations:
 
 Weather Details:
 - Location: ${location}
@@ -32,6 +32,8 @@ Please provide:
 3. Best time of day for hiking (if suitable)
 4. Any safety concerns or warnings
 5. Alternative outdoor activities if hiking isn't recommended
+
+IMPORTANT: Keep descriptions realistic and proportionate to actual risk. Use calm, practical language. Only express urgency for genuinely dangerous conditions (severe storms, extreme temperatures, etc.). For moderate weather like light-moderate rain or cool temperatures, focus on practical preparation rather than dramatic warnings.
 
 Keep the response concise but informative, suitable for a weather notification message.
 Note: This forecast is for ${weatherData.dayLabel.toLowerCase()}.
@@ -73,19 +75,21 @@ async function analyzeExtremeWeatherWithGemini(alerts, location) {
     const alertDescriptions = alerts.map(alert => `${alert.type}: ${alert.message}`).join('\n');
     
     const prompt = `
-Analyze the following extreme weather alerts for ${location} and provide urgent safety recommendations:
+Analyze the following extreme weather alerts for ${location} and provide appropriate safety recommendations:
 
 EXTREME WEATHER ALERTS:
 ${alertDescriptions}
 
 Please provide:
-1. Immediate safety actions to take RIGHT NOW
-2. Specific risks to human life and safety
-3. What outdoor activities must be avoided completely
-4. Emergency preparedness recommendations
-5. When conditions might be safe again
+1. Immediate safety actions to take
+2. Specific risks to consider
+3. What outdoor activities should be avoided or postponed
+4. Practical preparedness recommendations
+5. When conditions might improve
 
-Keep the response urgent, clear, and focused on life safety. This is an emergency weather situation.
+IMPORTANT: Match the urgency of your language to the actual severity of conditions. For moderate extreme weather (heavy rain, cold temperatures), use firm but calm guidance. Reserve emergency language only for truly life-threatening situations (violent storms, dangerous temperatures below -15°C or above 40°C, severe flooding risk). Focus on practical safety measures rather than dramatic descriptions.
+
+Keep the response clear and focused on safety while maintaining proportionate tone.
 `;
 
     console.log(`🔍 Sending extreme weather request to Gemini with model: gemini-2.5-flash`);
