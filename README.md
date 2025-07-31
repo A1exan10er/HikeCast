@@ -4,7 +4,13 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
 
 ## 🔧 Recent Updates & Fixes
 
-### ✨ Latest Improvements (July 2025)
+### ✨ Latest Improvements (August 2025)
+- **🎯 AI Analysis Tone Improvements**: Enhanced weather analysis balance and realism
+  - Updated AI prompts to provide realistic, proportionate risk descriptions
+  - Eliminated over-dramatic language for moderate weather conditions
+  - Reserved emergency language only for truly life-threatening situations
+  - Improved practical guidance focus with calm, actionable recommendations
+  - Enhanced user trust and reduced alarm fatigue from balanced messaging
 - **🤖 AI Analysis Toggle Fix**: Resolved issue where AI analysis couldn't be properly disabled
   - Fixed checkbox state detection in form submissions
   - Added proper boolean handling for enableAIAnalysis field
@@ -77,10 +83,12 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
 - **Statistics Tracking**: User creation/update timestamps
 
 ### 🤖 AI-Powered Analysis
-- **Gemini AI Integration**: Advanced weather analysis with hiking-specific recommendations
-- **Smart Suggestions**: Hiking suitability ratings, gear recommendations, and safety warnings
+- **Gemini AI Integration**: Advanced weather analysis with realistic, balanced recommendations
+- **Smart Suggestions**: Hiking suitability ratings, practical gear recommendations, and proportionate safety guidance
+- **Balanced Risk Assessment**: Realistic descriptions that match actual weather severity
 - **Alternative Activities**: Suggestions for indoor/outdoor alternatives when hiking isn't ideal
 - **User-Controlled Toggle**: Enable/disable AI analysis per user via dashboard settings
+- **Calm Practical Guidance**: Focus on actionable advice rather than dramatic warnings
 
 ### 🚨 Extreme Weather Alerts
 - **Automatic Monitoring**: Continuous monitoring for dangerous weather conditions
@@ -562,18 +570,20 @@ curl http://localhost:3000/health
 ## 🤖 AI Features
 
 ### Regular Weather Analysis
-1. **Hiking Suitability Rating** (1-10 scale)
-2. **Gear Recommendations** (clothing, equipment)
-3. **Optimal Timing** (best hours for hiking)
-4. **Safety Warnings** (weather-related risks)
+1. **Hiking Suitability Rating** (1-10 scale with realistic assessment)
+2. **Practical Gear Recommendations** (appropriate clothing and equipment)
+3. **Optimal Timing** (best hours for hiking if conditions allow)
+4. **Proportionate Safety Guidance** (realistic risk assessment without over-dramatization)
 5. **Alternative Activities** (when hiking isn't recommended)
 
 ### Emergency Weather Analysis
-1. **Immediate Safety Actions** (urgent steps to take)
-2. **Life Safety Risks** (specific dangers to humans)
-3. **Activity Prohibitions** (what must be avoided)
-4. **Emergency Preparedness** (supplies and planning)
-5. **Recovery Timeline** (when conditions improve)
+1. **Immediate Safety Actions** (appropriate to actual severity level)
+2. **Realistic Risk Assessment** (dangers proportionate to conditions)
+3. **Activity Recommendations** (what should be avoided or postponed)
+4. **Practical Preparedness** (supplies and planning advice)
+5. **Recovery Timeline** (when conditions might improve)
+
+**Balanced Approach**: AI analysis now provides realistic, proportionate responses that match actual weather severity. Emergency language is reserved for truly life-threatening situations, while moderate conditions receive calm, practical guidance.
 
 ### Sample Multi-Day Output:
 ```
