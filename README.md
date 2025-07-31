@@ -5,6 +5,12 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
 ## 🔧 Recent Updates & Fixes
 
 ### ✨ Latest Improvements (August 2025)
+- **🗂️ Project Organization**: Enhanced file structure and organization
+  - Moved verification scripts to appropriate folders (tests/, tools/)
+  - Updated all relative paths for cross-platform compatibility
+  - Created logical folder structure with clear purpose separation
+  - Added comprehensive folder documentation and icons
+  - Improved development workflow with better file organization
 - **🎯 AI Analysis Tone Improvements**: Enhanced weather analysis balance and realism
   - Updated AI prompts to provide realistic, proportionate risk descriptions
   - Eliminated over-dramatic language for moderate weather conditions
@@ -57,6 +63,8 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
   - Asset hot-reloading capability for faster development
   - Individual module testing and debugging support
   - Tools organized in `/tools/` folder for better project structure
+  - Tests consolidated in `/tests/` folder with verification scripts
+  - Cross-platform file path compatibility and proper organization
 - **🚫 Deployment Control**: Optimized startup and notification behavior
   - No automatic messages sent to users after deployment/restart
   - Manual testing available via dashboard or API endpoints
@@ -706,30 +714,52 @@ Perfect hiking conditions! Clear skies and mild temperatures...
 ### Project Structure
 ```
 HikeCast/
-├── views/
-│   └── dashboard.html              # User management dashboard interface
-├── tests/                          # Test suite (all test scripts)
-│   ├── README.md                   # Test documentation
-│   ├── test_form_submission.js     # Form submission tests
-│   ├── test_ui_integration.js      # UI integration tests
-│   ├── test_extreme_weather_ai.js  # AI weather detection tests
+├── 📄 Core Application Files
+│   ├── index.js                       # Main application entry (389 lines)
+│   ├── database.js                    # SQLite database management
+│   ├── hikecast.db                    # SQLite database (auto-created)
+│   ├── users.json                     # Legacy user config (auto-migrated)
+│   ├── users.example.json             # Example user configuration
+│   └── package.json                   # Dependencies and scripts
+├── 🛠️ services/                        # Backend Services (5 modules)
+│   ├── aiService.js                   # AI weather analysis with balanced tone
+│   ├── extremeWeatherService.js       # Extreme weather monitoring
+│   ├── forecastService.js             # Weather forecast generation
+│   ├── notificationService.js         # Multi-channel notifications
+│   └── weatherService.js              # Core weather API integration
+├── 🌐 routes/                          # API Routes (2 modules)
+│   ├── systemRoutes.js                # System management endpoints
+│   └── userRoutes.js                  # User CRUD operations
+├── 🔧 utils/                           # Utilities (2 modules)
+│   ├── dateUtils.js                   # Date/time utilities
+│   └── validation.js                  # Input validation helpers
+├── 🎨 views/                           # Frontend (modularized)
+│   ├── dashboard.html                 # User management interface (238 lines)
+│   └── assets/
+│       ├── css/dashboard.css          # Complete styling (362 lines)
+│       └── js/dashboard.js            # Full functionality (918 lines)
+├── 🧪 tests/                           # Test Suite (6 test files)
+│   ├── README.md                      # Test documentation
+│   ├── verify-refactoring.js          # Modular architecture verification
+│   ├── test_form_submission.js        # Form submission tests
+│   ├── test_ui_integration.js         # UI integration tests
+│   ├── test_extreme_weather_ai.js     # AI weather detection tests
 │   ├── test_configurable_extreme_weather.js  # Configurable alerts tests
-│   └── quick_test.js               # Quick verification test
-├── tools/                          # Development and maintenance tools
-│   ├── README.md                   # Tool documentation
-│   ├── remove_duplicates.py        # Automated duplicate code removal
-│   ├── check_database.py           # Database file duplicate analysis
-│   └── check_dashboard.py          # Dashboard file duplicate analysis
-├── index.js                       # Main application file (now cleaner!)
-├── database.js                    # SQLite database management
-├── hikecast.db                    # SQLite database (auto-created)
-├── users.json                     # Legacy user config (auto-migrated)
-├── users.example.json             # Example user configuration
-├── package.json                   # Dependencies and scripts
-├── .env                          # Environment variables
-├── .env.example                  # Environment template
-├── .gitignore                    # Git ignore rules
-└── README.md                     # This file
+│   └── quick_test.js                  # Quick verification test
+├── 🔨 tools/                           # Development Tools (3 tools)
+│   ├── README.md                      # Tool documentation
+│   ├── remove_duplicates.py           # Automated duplicate code removal
+│   ├── check_database.py              # Database analysis tools
+│   └── check_dashboard.py             # Dashboard analysis tools
+├── 📚 Documentation
+│   ├── README.md                      # This file
+│   ├── PROJECT_MODULARIZATION_COMPLETE.md  # Complete modularization summary
+│   ├── TESTING_GUIDE.md               # Testing procedures
+│   └── LICENSE                        # MIT License
+└── 🔧 Configuration
+    ├── .env                           # Environment variables
+    ├── .env.example                   # Environment template
+    └── .gitignore                     # Git ignore rules
 ```
 
 ### Database Schema
@@ -849,6 +879,7 @@ The application includes a comprehensive test suite located in the `tests/` fold
 for test in tests/test_*.js; do echo "Running $test"; node "$test"; echo ""; done
 
 # Run specific tests
+node tests/verify-refactoring.js        # Verify modular architecture integrity
 node tests/test_form_submission.js      # Test form submission functionality
 node tests/test_ui_integration.js       # Test complete UI workflow
 node tests/quick_test.js                # Quick verification test
