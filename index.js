@@ -10,7 +10,7 @@ const UserDatabase = require('./database');
 
 // Import services
 const { notifyUser } = require('./services/forecastService');
-const { checkExtremeWeatherForEnabledUsers } = require('./services/extremeWeatherService');
+const { checkExtremeWeatherForEnabledUsers, checkSpecificUsersExtremeWeather } = require('./services/extremeWeatherService');
 
 // Import routes
 const createUserRoutes = require('./routes/userRoutes');
@@ -55,29 +55,16 @@ async function scheduleNotifications() {
 }
 
 // Check extreme weather for specific users
-async function checkSpecificUsersExtremeWeather(users) {
+async function checkSpecificUsersExtremeWeatherInternal(users) {
   try {
     console.log(`🔍 Starting extreme weather check for ${users.length} specific users...`);
     
-    for (const user of users) {
-      // Double-check that user still has alerts enabled
-      if (user.enableExtremeWeatherAlerts === false) {
-        console.log(`Skipping ${user.name} - extreme weather alerts disabled`);
-        continue;
-      }
-      
-      for (const location of user.locations) {
-        try {
-          console.log(`Checking extreme weather for ${user.name} at ${location}`);
-          await checkExtremeWeatherForEnabledUsers();
-        } catch (error) {
-          console.error(`❌ Error checking extreme weather for ${user.name} at ${location}:`, error.message);
-        }
-      }
-    }
+    // Use the proper function from the service that handles individual users
+    await checkSpecificUsersExtremeWeather(users);
+    
     console.log('✅ Extreme weather check completed for specific users');
   } catch (error) {
-    console.error('❌ Error in checkSpecificUsersExtremeWeather:', error.message);
+    console.error('❌ Error in checkSpecificUsersExtremeWeatherInternal:', error.message);
     throw error;
   }
 }
@@ -123,7 +110,7 @@ async function scheduleExtremeWeatherChecks() {
       const task = cron.schedule(interval, async () => {
         console.log(`[${new Date().toISOString()}] Running extreme weather check for interval: ${interval}`);
         try {
-          await checkSpecificUsersExtremeWeather(usersWithInterval);
+          await checkSpecificUsersExtremeWeatherInternal(usersWithInterval);
           console.log(`[${new Date().toISOString()}] Extreme weather check completed for interval: ${interval}`);
         } catch (error) {
           console.error(`[${new Date().toISOString()}] Error in extreme weather check for interval ${interval}:`, error);
@@ -203,13 +190,17 @@ app.get('/test-notify', async (req, res) => {
 app.post('/check-extreme-weather', async (req, res) => {
   try {
     console.log('🌨️ Manual extreme weather check requested...');
+    
+    // Call the function that checks all enabled users
     await checkExtremeWeatherForEnabledUsers(loadUsers);
+    
     res.json({
       status: 'success',
       message: 'Extreme weather check completed successfully'
     });
   } catch (error) {
     console.error('❌ Error in manual extreme weather check:', error.message);
+    console.error('❌ Error stack:', error.stack);
     res.status(500).json({
       status: 'error',
       message: 'Error checking extreme weather: ' + error.message
