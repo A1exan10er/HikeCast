@@ -95,25 +95,6 @@ function createSystemRoutes(db, scheduleNotifications, scheduleExtremeWeatherChe
     }
   });
 
-  // Trigger extreme weather check for all users
-  router.post('/check-extreme-weather', async (req, res) => {
-    try {
-      const result = await checkExtremeWeatherForEnabledUsers(db);
-      
-      res.json({
-        status: 'success',
-        message: 'Extreme weather check completed',
-        result
-      });
-      
-    } catch (error) {
-      res.status(500).json({
-        status: 'error',
-        message: error.message
-      });
-    }
-  });
-
   // Reschedule all notifications
   router.post('/reschedule', async (req, res) => {
     try {

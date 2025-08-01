@@ -199,6 +199,24 @@ app.get('/test-notify', async (req, res) => {
   }
 });
 
+// Extreme weather check endpoint
+app.post('/check-extreme-weather', async (req, res) => {
+  try {
+    console.log('🌨️ Manual extreme weather check requested...');
+    await checkExtremeWeatherForEnabledUsers(loadUsers);
+    res.json({
+      status: 'success',
+      message: 'Extreme weather check completed successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error in manual extreme weather check:', error.message);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error checking extreme weather: ' + error.message
+    });
+  }
+});
+
 // Debug endpoint
 app.get('/debug', async (req, res) => {
   try {

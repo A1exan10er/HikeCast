@@ -865,7 +865,12 @@ async function checkExtremeWeather() {
     showStatus('Checking extreme weather for all users...', 'info');
     
     try {
-        const response = await fetch('/check-extreme-weather');
+        const response = await fetch('/check-extreme-weather', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
         const data = await response.json();
         showStatus(data.message, data.status === 'success' ? 'success' : 'error');
     } catch (error) {
