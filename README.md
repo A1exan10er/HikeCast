@@ -5,6 +5,14 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
 ## 🔧 Recent Updates & Fixes
 
 ### ✨ Latest Improvements (August 2025)
+- **⚡ Smart Short-Duration Weather Analysis**: Intelligent time-specific weather guidance
+  - Analyzes hourly weather patterns to distinguish short vs extended bad weather
+  - Short thunderstorms (1-2h) generate timing advice instead of blanket prohibitions
+  - Extended bad weather (3+ hours) still triggers appropriate safety measures
+  - Identifies and communicates safe hiking windows throughout the day
+  - Graduated severity system (LOW/MEDIUM/HIGH/CRITICAL) for proportionate responses
+  - Actionable recommendations: "Plan around 2-3 PM thunderstorm window" vs "Hiking PROHIBITED"
+  - Reduces unnecessary alarm fatigue while maintaining safety as top priority
 - **🗂️ Project Organization**: Enhanced file structure and organization
   - Moved verification scripts to appropriate folders (tests/, tools/)
   - Updated all relative paths for cross-platform compatibility
@@ -99,8 +107,13 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
 - **Calm Practical Guidance**: Focus on actionable advice rather than dramatic warnings
 
 ### 🚨 Extreme Weather Alerts
+- **Smart Time-Specific Analysis**: Hourly weather pattern analysis for precise warnings
+- **Short-Duration Intelligence**: Distinguishes 1-2 hour storms from extended bad weather
+- **Safe Window Identification**: Recommends optimal timing for outdoor activities
 - **Automatic Monitoring**: Continuous monitoring for dangerous weather conditions
 - **Real-Time Alerts**: Immediate notifications for extreme weather events
+- **Graduated Severity**: LOW/MEDIUM/HIGH/CRITICAL levels for proportionate responses
+- **Actionable Guidance**: Time-specific recommendations instead of blanket prohibitions
 - **Safety Prioritized**: Critical alerts sent to all channels regardless of user preferences
 - **Optional AI Safety Analysis**: Respects individual user AI analysis preferences
 - **Basic Safety Fallback**: Users with AI disabled receive essential safety information
@@ -272,6 +285,9 @@ GET /dashboard
 - Heat/Cold waves (3+ consecutive days)
 
 ### Alert Features
+- **Smart Time-Specific Analysis**: Hourly weather pattern analysis for precise timing guidance
+- **Short vs Extended Weather**: Distinguishes brief storms (1-2h) from extended bad weather (3+ hours)
+- **Safe Window Identification**: Identifies and recommends optimal hiking timeframes
 - **User-Configurable**: Enable/disable alerts per user with custom check intervals
 - **Flexible Scheduling**: Cron-based intervals (hourly, daily, every 2 hours, etc.)
 - **Intelligent Grouping**: Users with same intervals share scheduled tasks
@@ -282,9 +298,48 @@ GET /dashboard
 - **Basic Safety Fallback**: Essential safety information for users with AI disabled
 - **Override User Preferences**: Critical alerts sent to all channels
 
+### Smart Alert Types
+
+**⚡ Short-Duration Weather (NEW!)**
+```
+🟡 HIGH PRIORITY ALERTS:
+• ⚠️ SHORT-TERM THUNDERSTORM Today: Expected 14:00-16:00 (2h) - Plan around this window
+
+🟢 HELPFUL INFORMATION:
+• ✅ SAFE HIKING WINDOWS Today: 6:00-12:00, 18:00-20:00 - Good conditions for outdoor activities
+```
+
+**🌧️ Extended Bad Weather**
+```
+🔴 CRITICAL ALERTS:
+• ⚠️ DANGEROUS CONDITIONS Today: Thunderstorm - Extended bad weather, hiking NOT recommended
+```
+
 ### Sample Extreme Weather Alert
 
-**With AI Analysis Enabled:**
+**Short-Duration Storm (NEW Smart Analysis):**
+```
+🚨 EXTREME WEATHER ALERT 🚨
+📍 Location: Mount Washington Trail
+⏰ Alert Time: Aug 1, 2025, 8:00 AM
+
+🟡 HIGH PRIORITY ALERTS:
+• ⚠️ SHORT-TERM THUNDERSTORM Today: Expected 14:00-16:00 (2h) - Plan around this window
+
+🟢 HELPFUL INFORMATION:
+• ✅ SAFE HIKING WINDOWS Today: 6:00-12:00, 18:00-20:00 - Good conditions for outdoor activities
+
+⚠️ SAFETY RECOMMENDATIONS:
+• Plan activities around the short-term bad weather window
+• Monitor real-time weather updates before departing
+• Have emergency shelter plans for unexpected weather changes
+• Consider shorter hikes with easy escape routes
+• Take advantage of the safe hiking windows indicated above
+
+📱 Stay safe and check weather updates regularly!
+```
+
+**Extended Dangerous Weather:**
 ```
 🚨 EXTREME WEATHER ALERT 🚨
 📍 Location: Stuttgart, Germany
@@ -880,6 +935,7 @@ for test in tests/test_*.js; do echo "Running $test"; node "$test"; echo ""; don
 
 # Run specific tests
 node tests/verify-refactoring.js        # Verify modular architecture integrity
+node tests/test_short_duration_weather.js # Test smart short-duration weather analysis
 node tests/test_form_submission.js      # Test form submission functionality
 node tests/test_ui_integration.js       # Test complete UI workflow
 node tests/quick_test.js                # Quick verification test
