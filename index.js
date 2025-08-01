@@ -191,9 +191,9 @@ app.post('/check-extreme-weather', async (req, res) => {
   try {
     console.log('🌨️ Manual extreme weather check requested...');
     
-    // Call the function that checks all enabled users
-    await checkExtremeWeatherForEnabledUsers(loadUsers);
-    
+    // Call the function that checks all enabled users with manual check flag
+    await checkExtremeWeatherForEnabledUsers(loadUsers, true);
+
     res.json({
       status: 'success',
       message: 'Extreme weather check completed successfully'

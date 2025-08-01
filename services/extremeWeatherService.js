@@ -448,7 +448,7 @@ Good news! Current weather conditions are within normal parameters for hiking an
 }
 
 // Check and send extreme weather alerts for users who have enabled them
-async function checkExtremeWeatherForEnabledUsers(loadUsers) {
+async function checkExtremeWeatherForEnabledUsers(loadUsers, isManualCheck = false) {
   try {
     console.log('🔍 Starting extreme weather check for enabled users...');
     const users = await loadUsers();
@@ -474,8 +474,12 @@ async function checkExtremeWeatherForEnabledUsers(loadUsers) {
             await sendExtremeWeatherAlert(user, location, geo, alerts);
           } else {
             console.log(`✅ No extreme weather alerts for ${user.name} at ${location}`);
-            // Send a status notification to confirm the feature is working
-            await sendExtremeWeatherStatusUpdate(user, location, geo);
+            // Only send status notification for manual checks (dashboard button)
+            if (isManualCheck) {
+              await sendExtremeWeatherStatusUpdate(user, location, geo);
+            } else {
+              console.log(`📅 Scheduled check - no status notification sent`);
+            }
           }
         } catch (error) {
           console.error(`❌ Error checking extreme weather for ${user.name} at ${location}:`, error.message);
@@ -490,7 +494,7 @@ async function checkExtremeWeatherForEnabledUsers(loadUsers) {
 }
 
 // Check extreme weather for specific users
-async function checkSpecificUsersExtremeWeather(users) {
+async function checkSpecificUsersExtremeWeather(users, isManualCheck = false) {
   try {
     console.log(`🔍 Starting extreme weather check for ${users.length} specific users...`);
     
@@ -512,8 +516,12 @@ async function checkSpecificUsersExtremeWeather(users) {
             await sendExtremeWeatherAlert(user, location, geo, alerts);
           } else {
             console.log(`✅ No extreme weather alerts for ${user.name} at ${location}`);
-            // Send a status notification to confirm the feature is working
-            await sendExtremeWeatherStatusUpdate(user, location, geo);
+            // Only send status notification for manual checks (dashboard button)
+            if (isManualCheck) {
+              await sendExtremeWeatherStatusUpdate(user, location, geo);
+            } else {
+              console.log(`📅 Scheduled check - no status notification sent`);
+            }
           }
         } catch (error) {
           console.error(`❌ Error checking extreme weather for ${user.name} at ${location}:`, error.message);
