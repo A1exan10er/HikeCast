@@ -27,6 +27,81 @@ const EXTREME_WEATHER_THRESHOLDS = {
   }
 };
 
+// Analyze hourly weather patterns to identify short-duration dangerous weather
+function analyzeHourlyWeatherPatterns(hourly, dayIndex = 0) {
+  const patterns = {};
+  
+  if (!hourly || !hourly.time || !hourly.weathercode) {
+    return patterns;
+  }
+  
+  // Get hourly data for the specific day (24 hours starting from dayIndex * 24)
+  const startHour = dayIndex * 24;
+  const endHour = Math.min(startHour + 24, hourly.time.length);
+  
+  let dangerousHours = [];
+  let severeHours = [];
+  
+  for (let h = startHour; h < endHour; h++) {
+    const weatherCode = hourly.weathercode[h];
+    const localHour = h - startHour; // Hour within the day (0-23)
+    
+    if (EXTREME_WEATHER_THRESHOLDS.weatherCodes.dangerous.includes(weatherCode)) {
+      dangerousHours.push(localHour);
+    } else if (EXTREME_WEATHER_THRESHOLDS.weatherCodes.severe.includes(weatherCode)) {
+      severeHours.push(localHour);
+    }
+  }
+  
+  // Analyze patterns
+  patterns.dangerousHours = dangerousHours;
+  patterns.severeHours = severeHours;
+  patterns.dangerousDuration = dangerousHours.length;
+  patterns.severeDuration = severeHours.length;
+  patterns.totalBadWeatherHours = dangerousHours.length + severeHours.length;
+  
+  // Determine if it's short-duration (less than 3 hours of dangerous weather)
+  patterns.isShortDangerous = dangerousHours.length > 0 && dangerousHours.length <= 2;
+  patterns.isShortSevere = severeHours.length > 0 && severeHours.length <= 3;
+  
+  // Find time windows for safe hiking
+  patterns.safeHours = [];
+  for (let h = 0; h < 24; h++) {
+    const actualHour = startHour + h;
+    if (actualHour < endHour) {
+      const weatherCode = hourly.weathercode[actualHour];
+      if (!EXTREME_WEATHER_THRESHOLDS.weatherCodes.dangerous.includes(weatherCode) &&
+          !EXTREME_WEATHER_THRESHOLDS.weatherCodes.severe.includes(weatherCode)) {
+        patterns.safeHours.push(h);
+      }
+    }
+  }
+  
+  return patterns;
+}
+
+// Format time ranges for human-readable display
+function formatTimeRanges(hours) {
+  if (hours.length === 0) return '';
+  
+  hours.sort((a, b) => a - b);
+  const ranges = [];
+  let start = hours[0];
+  let end = hours[0];
+  
+  for (let i = 1; i < hours.length; i++) {
+    if (hours[i] === end + 1) {
+      end = hours[i];
+    } else {
+      ranges.push(start === end ? `${start}:00` : `${start}:00-${end + 1}:00`);
+      start = end = hours[i];
+    }
+  }
+  ranges.push(start === end ? `${start}:00` : `${start}:00-${end + 1}:00`);
+  
+  return ranges.join(', ');
+}
+
 // Check if weather conditions are extreme or dangerous
 function analyzeExtremeWeather(weatherData, location) {
   const alerts = [];
@@ -104,25 +179,65 @@ function analyzeExtremeWeather(weatherData, location) {
       });
     }
     
-    // Dangerous weather codes
+    // Dangerous weather codes - check hourly patterns first
     if (EXTREME_WEATHER_THRESHOLDS.weatherCodes.dangerous.includes(dayData.weatherCode)) {
+      const hourlyPattern = analyzeHourlyWeatherPatterns(hourly, i);
       const condition = getWeatherDescription(dayData.weatherCode);
-      alerts.push({
-        type: 'DANGEROUS_CONDITIONS',
-        severity: 'CRITICAL',
-        day: dayName,
-        relativeDay,
-        message: `⚠️ DANGEROUS CONDITIONS ${relativeDay}: ${condition} - Hiking PROHIBITED`
-      });
+      
+      if (hourlyPattern.isShortDangerous && hourlyPattern.dangerousDuration <= 2) {
+        const dangerousTime = formatTimeRanges(hourlyPattern.dangerousHours);
+        alerts.push({
+          type: 'SHORT_DANGEROUS_CONDITIONS',
+          severity: 'HIGH',
+          day: dayName,
+          relativeDay,
+          hourlyPattern,
+          message: `⚠️ SHORT-TERM ${condition.toUpperCase()} ${relativeDay}: Expected ${dangerousTime} (${hourlyPattern.dangerousDuration}h) - Plan around this window`
+        });
+        
+        // Add safe time suggestions if there are good windows
+        if (hourlyPattern.safeHours.length >= 6) {
+          const safeTime = formatTimeRanges(hourlyPattern.safeHours.slice(0, 12)); // Show first 12 safe hours
+          alerts.push({
+            type: 'SAFE_HIKING_WINDOWS',
+            severity: 'LOW',
+            day: dayName,
+            relativeDay,
+            message: `✅ SAFE HIKING WINDOWS ${relativeDay}: ${safeTime} - Good conditions for outdoor activities`
+          });
+        }
+      } else {
+        alerts.push({
+          type: 'DANGEROUS_CONDITIONS',
+          severity: 'CRITICAL',
+          day: dayName,
+          relativeDay,
+          message: `⚠️ DANGEROUS CONDITIONS ${relativeDay}: ${condition} - Extended bad weather, hiking NOT recommended`
+        });
+      }
     } else if (EXTREME_WEATHER_THRESHOLDS.weatherCodes.severe.includes(dayData.weatherCode)) {
+      const hourlyPattern = analyzeHourlyWeatherPatterns(hourly, i);
       const condition = getWeatherDescription(dayData.weatherCode);
-      alerts.push({
-        type: 'SEVERE_CONDITIONS',
-        severity: 'HIGH',
-        day: dayName,
-        relativeDay,
-        message: `⚠️ SEVERE CONDITIONS ${relativeDay}: ${condition} - Extreme caution required`
-      });
+      
+      if (hourlyPattern.isShortSevere && hourlyPattern.severeDuration <= 3) {
+        const severeTime = formatTimeRanges(hourlyPattern.severeHours);
+        alerts.push({
+          type: 'SHORT_SEVERE_CONDITIONS',
+          severity: 'MEDIUM',
+          day: dayName,
+          relativeDay,
+          hourlyPattern,
+          message: `⚠️ SHORT-TERM ${condition.toUpperCase()} ${relativeDay}: Expected ${severeTime} (${hourlyPattern.severeDuration}h) - Caution during this period`
+        });
+      } else {
+        alerts.push({
+          type: 'SEVERE_CONDITIONS',
+          severity: 'HIGH',
+          day: dayName,
+          relativeDay,
+          message: `⚠️ SEVERE CONDITIONS ${relativeDay}: ${condition} - Extreme caution required`
+        });
+      }
     }
   }
   
@@ -184,6 +299,8 @@ async function sendExtremeWeatherAlert(user, location, geo, alerts) {
   // Group alerts by severity
   const criticalAlerts = alerts.filter(a => a.severity === 'CRITICAL');
   const highAlerts = alerts.filter(a => a.severity === 'HIGH');
+  const mediumAlerts = alerts.filter(a => a.severity === 'MEDIUM');
+  const lowAlerts = alerts.filter(a => a.severity === 'LOW');
   
   if (criticalAlerts.length > 0) {
     message += `🔴 **CRITICAL ALERTS**:\n`;
@@ -196,6 +313,22 @@ async function sendExtremeWeatherAlert(user, location, geo, alerts) {
   if (highAlerts.length > 0) {
     message += `🟡 **HIGH PRIORITY ALERTS**:\n`;
     highAlerts.forEach(alert => {
+      message += `• ${alert.message}\n`;
+    });
+    message += `\n`;
+  }
+  
+  if (mediumAlerts.length > 0) {
+    message += `🟠 **MEDIUM PRIORITY ALERTS**:\n`;
+    mediumAlerts.forEach(alert => {
+      message += `• ${alert.message}\n`;
+    });
+    message += `\n`;
+  }
+  
+  if (lowAlerts.length > 0) {
+    message += `🟢 **HELPFUL INFORMATION**:\n`;
+    lowAlerts.forEach(alert => {
       message += `• ${alert.message}\n`;
     });
     message += `\n`;
@@ -221,17 +354,49 @@ async function sendExtremeWeatherAlert(user, location, geo, alerts) {
   }
   
   message += `⚠️ **SAFETY RECOMMENDATIONS**:\n`;
-  message += `• Cancel all outdoor activities\n`;
-  message += `• Stay indoors and monitor weather updates\n`;
-  message += `• Prepare emergency supplies\n`;
-  message += `• Avoid travel unless absolutely necessary\n\n`;
   
-  message += `📱 Stay safe and check weather updates regularly!`;
+  // Provide different recommendations based on alert severity
+  const hasShortDangerous = alerts.some(a => a.type === 'SHORT_DANGEROUS_CONDITIONS');
+  const hasShortSevere = alerts.some(a => a.type === 'SHORT_SEVERE_CONDITIONS');
+  const hasSafeWindows = alerts.some(a => a.type === 'SAFE_HIKING_WINDOWS');
   
-  const subject = `🚨 EXTREME WEATHER ALERT - ${geo.name} - ${criticalAlerts.length > 0 ? 'CRITICAL' : 'HIGH'} PRIORITY`;
+  if (criticalAlerts.length > 0 && !hasShortDangerous) {
+    // Critical alerts with extended bad weather
+    message += `• Cancel all outdoor activities for the affected period\n`;
+    message += `• Stay indoors and monitor weather updates\n`;
+    message += `• Prepare emergency supplies\n`;
+    message += `• Avoid travel unless absolutely necessary\n`;
+  } else if (hasShortDangerous || hasShortSevere) {
+    // Short-duration bad weather with safe windows
+    message += `• Plan activities around the short-term bad weather window\n`;
+    message += `• Monitor real-time weather updates before departing\n`;
+    message += `• Have emergency shelter plans for unexpected weather changes\n`;
+    message += `• Consider shorter hikes with easy escape routes\n`;
+    if (hasSafeWindows) {
+      message += `• Take advantage of the safe hiking windows indicated above\n`;
+    }
+  } else {
+    // Standard recommendations for other alerts
+    message += `• Exercise increased caution during outdoor activities\n`;
+    message += `• Monitor weather conditions regularly\n`;
+    message += `• Prepare appropriate gear for conditions\n`;
+    message += `• Have backup plans ready\n`;
+  }
   
-  // Send to all available channels for critical alerts
-  const channels = criticalAlerts.length > 0 ? ['telegram', 'email'] : user.channels;
+  message += `\n📱 Stay safe and check weather updates regularly!`;
+  
+  // Adjust subject and priority based on short-duration vs extended alerts
+  let priority = 'HIGH';
+  if (criticalAlerts.length > 0 && !hasShortDangerous) {
+    priority = 'CRITICAL';
+  } else if (hasShortDangerous || hasShortSevere) {
+    priority = 'TIMING-SENSITIVE';
+  }
+  
+  const subject = `🚨 EXTREME WEATHER ALERT - ${geo.name} - ${priority} PRIORITY`;
+  
+  // Send to all available channels for critical alerts (but not for short-duration alerts)
+  const channels = (criticalAlerts.length > 0 && !hasShortDangerous) ? ['telegram', 'email'] : user.channels;
   
   if (channels.includes('telegram') && user.telegram_chat_id) {
     await sendTelegram(user.telegram_chat_id, message);

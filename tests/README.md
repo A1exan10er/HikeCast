@@ -17,6 +17,17 @@ This folder contains all test scripts for the HikeCast application. Each test fo
 
 **Usage**: `node tests/verify-refactoring.js`
 
+### `test_short_duration_weather.js`
+**Purpose**: Tests the new short-duration weather analysis functionality  
+**What it tests**:
+- Short thunderstorms (1-2 hours) generate timing advice instead of prohibition
+- Extended bad weather (3+ hours) still triggers hiking prohibition
+- Safe hiking windows are identified and communicated
+- Normal weather produces no unnecessary alerts
+- Proper time formatting and message content
+
+**Usage**: `node tests/test_short_duration_weather.js`
+
 ### `test_form_submission.js`
 **Purpose**: Tests the dashboard form submission for extreme weather settings  
 **What it tests**:
