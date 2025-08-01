@@ -142,7 +142,7 @@ async function sendEmail(email, subject, message) {
   }
   
   try {
-    let transporter = nodemailer.createTransporter({
+    let transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: gmailUser,
