@@ -408,6 +408,45 @@ async function sendExtremeWeatherAlert(user, location, geo, alerts) {
   console.log(`🚨 Extreme weather alert sent to ${user.name} for ${location}`);
 }
 
+// Send status update when no extreme weather is detected
+async function sendExtremeWeatherStatusUpdate(user, location, geo) {
+  const timestamp = new Date().toISOString();
+  const subject = `✅ HikeCast: Weather Status Update for ${location}`;
+  
+  const message = `🌤️ **Weather Status Update**
+
+📍 **Location**: ${location}
+🔍 **Check Time**: ${new Date().toLocaleString()}
+✅ **Status**: No extreme weather alerts detected
+
+Good news! Current weather conditions are within normal parameters for hiking and outdoor activities.
+
+📊 **System Status**: 
+• Extreme weather monitoring is active
+• Automatic checks are running as scheduled
+• This message confirms your alerts are working properly
+
+🎯 **Next Actions**:
+• Continue with your planned outdoor activities
+• Regular monitoring will continue automatically
+• You'll be notified immediately if conditions change
+
+---
+📱 HikeCast Weather Monitoring System
+⏰ Generated: ${timestamp}`;
+
+  const channels = user.channels || ['telegram', 'email'];
+  
+  if (channels.includes('telegram') && user.telegram_chat_id) {
+    await sendTelegram(user.telegram_chat_id, message);
+  }
+  if (channels.includes('email') && user.email) {
+    await sendEmail(user.email, subject, message);
+  }
+  
+  console.log(`✅ Weather status update sent to ${user.name} for ${location}`);
+}
+
 // Check and send extreme weather alerts for users who have enabled them
 async function checkExtremeWeatherForEnabledUsers(loadUsers) {
   try {
@@ -435,6 +474,8 @@ async function checkExtremeWeatherForEnabledUsers(loadUsers) {
             await sendExtremeWeatherAlert(user, location, geo, alerts);
           } else {
             console.log(`✅ No extreme weather alerts for ${user.name} at ${location}`);
+            // Send a status notification to confirm the feature is working
+            await sendExtremeWeatherStatusUpdate(user, location, geo);
           }
         } catch (error) {
           console.error(`❌ Error checking extreme weather for ${user.name} at ${location}:`, error.message);
@@ -471,6 +512,8 @@ async function checkSpecificUsersExtremeWeather(users) {
             await sendExtremeWeatherAlert(user, location, geo, alerts);
           } else {
             console.log(`✅ No extreme weather alerts for ${user.name} at ${location}`);
+            // Send a status notification to confirm the feature is working
+            await sendExtremeWeatherStatusUpdate(user, location, geo);
           }
         } catch (error) {
           console.error(`❌ Error checking extreme weather for ${user.name} at ${location}:`, error.message);
@@ -488,6 +531,7 @@ module.exports = {
   EXTREME_WEATHER_THRESHOLDS,
   analyzeExtremeWeather,
   sendExtremeWeatherAlert,
+  sendExtremeWeatherStatusUpdate,
   checkExtremeWeatherForEnabledUsers,
   checkSpecificUsersExtremeWeather
 };
