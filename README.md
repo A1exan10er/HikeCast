@@ -90,6 +90,24 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
 - **Database Management**: Backup and restore functionality
 - **Mobile Friendly**: Works on desktop, tablet, and mobile devices
 
+### 🔒 Dashboard Authentication (NEW!)
+
+The dashboard at `/dashboard` is now protected with HTTP Basic Authentication.
+
+- **Access Prompt**: When you visit the dashboard, you will be prompted for a username and password.
+- **Credentials**: Set in your `.env` file as `DASHBOARD_USER` and `DASHBOARD_PASS`.
+- **Default Example:**
+  ```env
+  DASHBOARD_USER=admin
+  DASHBOARD_PASS=abcd1234
+  ```
+- **Change Credentials**: Edit your `.env` file to set your own username and password.
+- **Security**: Only users with the correct credentials can access the dashboard and its assets.
+
+> **Note:** If you forget your credentials, update them in `.env` and restart the server.
+
+---
+
 ### 💾 SQLite Database Integration (NEW!)
 - **Persistent Storage**: Automatic migration from `users.json` to SQLite
 - **ACID Compliance**: Reliable data integrity and concurrent access
@@ -483,6 +501,10 @@ WHATSAPP_VERIFY_TOKEN=your-verify-token
 
 # Optional (Database)
 DB_PATH=hikecast.db  # Custom database file path
+
+# Optional (Dashboard Authentication)
+DASHBOARD_USER=admin
+DASHBOARD_PASS=changeme
 ```
 
 ### User Configuration
