@@ -136,8 +136,28 @@ const PORT = process.env.PORT || 3000;
 // Add JSON parsing middleware
 app.use(express.json());
 
-// Serve static files from views directory for CSS and JS assets
-app.use('/assets', express.static(path.join(__dirname, 'views/assets')));
+
+// Simple HTTP Basic Auth middleware for dashboard protection
+const dashboardUser = process.env.DASHBOARD_USER || 'admin';
+const dashboardPass = process.env.DASHBOARD_PASS || 'changeme';
+function dashboardAuth(req, res, next) {
+  const auth = req.headers['authorization'];
+  if (!auth || !auth.startsWith('Basic ')) {
+    res.set('WWW-Authenticate', 'Basic realm="HikeCast Dashboard"');
+    return res.status(401).send('Authentication required.');
+  }
+  const credentials = Buffer.from(auth.split(' ')[1], 'base64').toString().split(':');
+  const [user, pass] = credentials;
+  if (user === dashboardUser && pass === dashboardPass) {
+    return next();
+  }
+  res.set('WWW-Authenticate', 'Basic realm="HikeCast Dashboard"');
+  return res.status(401).send('Invalid credentials.');
+}
+
+// Protect dashboard and assets
+app.use('/dashboard', dashboardAuth);
+app.use('/assets', dashboardAuth, express.static(path.join(__dirname, 'views/assets')));
 
 // Basic endpoints
 app.get('/', (req, res) => {
