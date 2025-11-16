@@ -4,7 +4,18 @@ A cloud-based notification bot that sends intelligent hiking weather updates via
 
 ## 🔧 Recent Updates & Fixes
 
-### ✨ Latest Improvements (August 2025)
+### ✨ Latest Improvements (November 2025)
+- **💬 Two-Way Telegram Conversations**: Interactive bot communication
+  - Users can now ask questions and get instant AI-powered responses
+  - Natural language weather queries: "What's the weather in Stuttgart?"
+  - Command support: `/start`, `/help`, `/status`
+  - Intelligent location extraction from user messages
+  - Uses user's saved locations when no location specified
+  - Contextual responses tailored to specific questions
+  - Webhook-based real-time message handling
+  - Complete setup guide in `TELEGRAM_CONVERSATION_SETUP.md`
+
+### ✨ Recent Improvements (August 2025)
 - **⚡ Smart Short-Duration Weather Analysis**: Intelligent time-specific weather guidance
   - Analyzes hourly weather patterns to distinguish short vs extended bad weather
   - Short thunderstorms (1-2h) generate timing advice instead of blanket prohibitions
@@ -140,6 +151,14 @@ The dashboard at `/dashboard` is now protected with HTTP Basic Authentication.
 - **Telegram**: Real-time notifications with Markdown formatting
 - **Email**: HTML-formatted messages via Gmail SMTP
 - **WhatsApp**: Template-based messages (limited functionality)
+
+### 💬 Two-Way Telegram Conversations (NEW!)
+- **Interactive Bot**: Users can message the bot anytime
+- **Natural Language**: Ask weather questions in plain language
+- **AI-Powered Responses**: Contextual answers using Gemini AI
+- **Commands Support**: `/start`, `/help`, `/status` commands
+- **Location Intelligence**: Extracts locations from queries or uses saved locations
+- **24/7 Availability**: Instant responses without manual intervention
 
 ### ⚙️ Advanced Scheduling
 - **Per-User Scheduling**: Customizable cron-based notification times
@@ -494,6 +513,9 @@ GMAIL_USER=your-email@gmail.com
 GMAIL_PASS=your-gmail-app-password
 GEMINI_API_KEY=your-gemini-api-key
 
+# Required for Two-Way Conversations
+WEBHOOK_URL=https://your-app-domain.com
+
 # Optional (WhatsApp)
 WHATSAPP_ACCESS_TOKEN=your-whatsapp-access-token
 WHATSAPP_PHONE_NUMBER_ID=your-phone-number-id
@@ -572,6 +594,13 @@ DASHBOARD_PASS=changeme
 |----------|--------|-------------|
 | `/webhook` | GET | WhatsApp webhook verification |
 | `/webhook` | POST | WhatsApp webhook for incoming messages |
+
+### Telegram Conversation
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/telegram-webhook` | POST | Receive incoming messages from Telegram |
+| `/setup-telegram-webhook` | POST | Register webhook URL with Telegram |
+| `/telegram-webhook-info` | GET | Get current webhook configuration |
 
 ### Testing & Debugging
 | Endpoint | Method | Description |
@@ -798,8 +827,9 @@ HikeCast/
 │   ├── users.json                     # Legacy user config (auto-migrated)
 │   ├── users.example.json             # Example user configuration
 │   └── package.json                   # Dependencies and scripts
-├── 🛠️ services/                        # Backend Services (5 modules)
+├── 🛠️ services/                        # Backend Services (6 modules)
 │   ├── aiService.js                   # AI weather analysis with balanced tone
+│   ├── conversationService.js         # Two-way Telegram conversation handler (NEW!)
 │   ├── extremeWeatherService.js       # Extreme weather monitoring
 │   ├── forecastService.js             # Weather forecast generation
 │   ├── notificationService.js         # Multi-channel notifications
@@ -832,6 +862,8 @@ HikeCast/
 │   ├── README.md                      # This file
 │   ├── PROJECT_MODULARIZATION_COMPLETE.md  # Complete modularization summary
 │   ├── TESTING_GUIDE.md               # Testing procedures
+│   ├── TELEGRAM_CONVERSATION_SETUP.md # Two-way conversation setup guide (NEW!)
+│   ├── CONVERSATION_FEATURE_SUMMARY.md # Conversation feature summary (NEW!)
 │   └── LICENSE                        # MIT License
 └── 🔧 Configuration
     ├── .env                           # Environment variables

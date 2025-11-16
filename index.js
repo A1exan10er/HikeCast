@@ -4,6 +4,7 @@ const cron = require('node-cron');
 require('dotenv').config();
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
 
 // Import database
 const UserDatabase = require('./database');
@@ -11,6 +12,8 @@ const UserDatabase = require('./database');
 // Import services
 const { notifyUser } = require('./services/forecastService');
 const { checkExtremeWeatherForEnabledUsers, checkSpecificUsersExtremeWeather } = require('./services/extremeWeatherService');
+const { handleUserMessage } = require('./services/conversationService');
+const { startPolling, stopPolling } = require('./services/telegramPollingService');
 
 // Import routes
 const createUserRoutes = require('./routes/userRoutes');
@@ -329,6 +332,152 @@ app.post('/webhook', express.json(), (req, res) => {
   }
 });
 
+// Telegram webhook for two-way communication
+app.post('/telegram-webhook', express.json(), async (req, res) => {
+  try {
+    console.log('📨 Telegram webhook received:', JSON.stringify(req.body, null, 2));
+    
+    const message = req.body.message;
+    
+    if (message && message.text) {
+      const chatId = message.chat.id;
+      const userId = message.from.id.toString(); // Use sender's user ID, not chat ID
+      const messageText = message.text;
+      const isGroupChat = message.chat.type === 'group' || message.chat.type === 'supergroup';
+      
+      console.log(`💬 Message from ${message.from.first_name} (${message.from.id}) in ${isGroupChat ? 'group' : 'private'} chat ${chatId}: ${messageText}`);
+      
+      // In group chats, only respond if bot is mentioned or it's a bot command
+      if (isGroupChat) {
+        const botUsername = process.env.TELEGRAM_BOT_USERNAME || '';
+        
+        // Check if it's a command directed at the bot (e.g., /start@PackYourPonchoBot)
+        const isBotCommand = messageText.startsWith('/') && messageText.includes(`@${botUsername}`);
+        
+        // Check for @mention in the text
+        const isMentioned = message.entities && message.entities.some(entity => 
+          entity.type === 'mention' && messageText.includes(`@${botUsername}`)
+        );
+        
+        // Also check for text_mention type (when user clicks on bot name)
+        const isTextMentioned = message.entities && message.entities.some(entity => 
+          entity.type === 'text_mention' && entity.user && entity.user.is_bot
+        );
+        
+        // Check if message contains @botname anywhere
+        const hasAtMention = messageText.includes(`@${botUsername}`);
+        
+        if (!isBotCommand && !isMentioned && !isTextMentioned && !hasAtMention) {
+          console.log(`ℹ️ Ignoring group message (bot not mentioned)`);
+          res.sendStatus(200);
+          return;
+        }
+        
+        console.log(`✅ Bot mentioned in group chat, processing message`);
+      }
+      
+      // Remove bot mention from message text for processing
+      let cleanedText = messageText;
+      const botUsername = process.env.TELEGRAM_BOT_USERNAME || '';
+      if (botUsername) {
+        // Remove @botname and also bot commands like /start@botname
+        cleanedText = messageText
+          .replace(new RegExp(`@${botUsername}\\s*`, 'gi'), '')
+          .replace(new RegExp(`@${botUsername}`, 'gi'), '')
+          .trim();
+      }
+      
+      // Handle the user's message
+      const response = await handleUserMessage(cleanedText, userId);
+      
+      // Send response back to chat
+      const { sendTelegram } = require('./services/notificationService');
+      await sendTelegram(chatId, response);
+      
+      console.log(`✅ Response sent to chat ${chatId}`);
+    }
+    
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('❌ Error handling Telegram webhook:', error);
+    res.sendStatus(500);
+  }
+});
+
+// Setup Telegram webhook
+app.post('/setup-telegram-webhook', async (req, res) => {
+  try {
+    const webhookUrl = req.body.webhookUrl || process.env.WEBHOOK_URL;
+    
+    if (!webhookUrl) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Webhook URL is required. Provide it in request body or set WEBHOOK_URL environment variable.'
+      });
+    }
+    
+    const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+    if (!TELEGRAM_BOT_TOKEN) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'TELEGRAM_BOT_TOKEN environment variable is not set.'
+      });
+    }
+    
+    const telegramApiUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`;
+    
+    const response = await axios.post(telegramApiUrl, {
+      url: `${webhookUrl}/telegram-webhook`,
+      allowed_updates: ['message']
+    });
+    
+    console.log('✅ Telegram webhook set:', response.data);
+    
+    res.json({
+      status: 'success',
+      message: 'Telegram webhook configured successfully',
+      webhookUrl: `${webhookUrl}/telegram-webhook`,
+      telegram_response: response.data
+    });
+    
+  } catch (error) {
+    console.error('❌ Error setting Telegram webhook:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+});
+
+// Get current Telegram webhook info
+app.get('/telegram-webhook-info', async (req, res) => {
+  try {
+    const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+    if (!TELEGRAM_BOT_TOKEN) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'TELEGRAM_BOT_TOKEN environment variable is not set.'
+      });
+    }
+    
+    const response = await axios.get(
+      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo`
+    );
+    
+    res.json({
+      status: 'success',
+      webhook_info: response.data
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting webhook info:', error);
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+});
+
 // Use route modules
 app.use('/users', createUserRoutes(db, scheduleNotifications, scheduleExtremeWeatherChecks));
 app.use('/system', createSystemRoutes(db, scheduleNotifications, scheduleExtremeWeatherChecks));
@@ -381,6 +530,16 @@ app.listen(PORT, async () => {
     await scheduleNotifications();
     await scheduleExtremeWeatherChecks();
     
+    // Start Telegram polling for local development
+    // For production, use webhook instead (see TELEGRAM_CONVERSATION_SETUP.md)
+    if (!process.env.WEBHOOK_URL || process.env.USE_POLLING === 'true') {
+      console.log('🔄 Starting Telegram polling mode (local development)...');
+      startPolling();
+    } else {
+      console.log('📡 Webhook mode enabled. Make sure to register webhook with Telegram.');
+      console.log('   Use: POST /setup-telegram-webhook to register the webhook.');
+    }
+    
     // Deployment notifications disabled - users can use "Test Notification" feature instead
     console.log('Deployment notifications disabled. Users can test notifications via dashboard.');
     console.log('Use /test-notify endpoint or dashboard "Test Notification" buttons for testing.');
@@ -399,6 +558,7 @@ app.listen(PORT, async () => {
 process.on('SIGINT', async () => {
   console.log('Shutting down gracefully...');
   try {
+    stopPolling();
     await db.close();
     process.exit(0);
   } catch (error) {
@@ -410,6 +570,7 @@ process.on('SIGINT', async () => {
 process.on('SIGTERM', async () => {
   console.log('Received SIGTERM, shutting down gracefully...');
   try {
+    stopPolling();
     await db.close();
     process.exit(0);
   } catch (error) {
